@@ -1,4 +1,6 @@
-# xfeel-v3 家庭记忆助手
+# xfeel 家庭记忆助手
+
+[English](README.en.md)
 
 xfeel 是一个面向家庭的长期记忆系统：家人可以像聊天一样记录孩子成长、日常照护、情绪变化和重要片段，系统会把零散消息沉淀成可检索、可回顾、可继续对话的结构化记忆。
 
@@ -135,6 +137,23 @@ curl -X POST http://localhost:3100/recall \
 curl http://localhost:3100/stats
 ```
 
+启动后打开 `http://localhost:3100/app`（家人用移动端页面）或 `/dashboard`（管理台）。
+
+想先看效果，可导入内置的合成 demo 日记：
+
+```bash
+bun run import:quick   # 20 篇虚构家庭日记，规则模式秒级完成
+```
+
+### Docker 部署
+
+```bash
+cp .env.example .env
+docker compose up -d
+# 或连容器化 Ollama 一起跑：
+docker compose --profile ollama up -d
+```
+
 ## LLM 配置
 
 完整变量清单见 [.env.example](.env.example)。核心配置：
@@ -196,7 +215,7 @@ LLM_API_KEY=your_key_here
 ## 批量导入
 
 ```bash
-# 从 example-diaries 数据目录导入（默认）
+# 导入内置 demo 日记（examples/demo-diaries，默认）
 bun run import
 
 # 指定目录
@@ -232,7 +251,11 @@ bun run archive:daily --date=2026-05-12 --owner=demo-mom-owner
 bun run test:ui
 ```
 
-## 微信公众号菜单与自动登录
+## 微信公众号通道
+
+从零接入公众号（服务器配置、用户旅程、菜单与授权、二维码替换）见完整指南：[docs/wechat-channel.md](docs/wechat-channel.md)。
+
+### 菜单与自动登录
 
 网页入口可以挂到公众号自定义菜单。推荐菜单 URL 指向微信网页授权入口，而不是直接指向 `/app`：
 
@@ -276,6 +299,10 @@ bun run wechat:menu
 - **实体标准化**：统一名称（星星/禾禾/妈妈/爸爸/外婆/宝宝们），自动追踪提及次数
 - **当天对话 → 日终归档 → 更新图谱**：新版不再只是离线分析旧日记，而是在用户当天持续对话后生成总结、沉淀事件并更新知识图谱
 - **多模态后置**：语音 ASR、图片理解、视频切段后续接入，产物仍然回到文本事件、日记和图谱
+
+## 参与贡献
+
+见 [CONTRIBUTING.md](CONTRIBUTING.md)。Issue / PR / 文档改进都欢迎。
 
 ## License
 

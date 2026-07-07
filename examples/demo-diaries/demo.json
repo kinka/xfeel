@@ -1,0 +1,22 @@
+[
+  { "id": "demo-001", "owner_id": "demo-mom-owner", "date": "2026-05-02", "content": "今天星星第一次自己翻身了！翻过去之后自己都愣住了，然后咯咯笑，我激动得赶紧录了视频。" },
+  { "id": "demo-002", "owner_id": "demo-mom-owner", "date": "2026-05-03", "content": "昨晚星星夜醒三次，喂完奶还是哼哼唧唧，我几乎没睡，今天整个人都是飘的。" },
+  { "id": "demo-003", "owner_id": "demo-dad-owner", "date": "2026-05-03", "content": "老婆昨晚带娃太辛苦了，今晚我来值夜班。给星星拍了嗝哄了半小时才睡着。" },
+  { "id": "demo-004", "owner_id": "demo-mom-owner", "date": "2026-05-06", "content": "带禾禾去打疫苗，她哭了一小会儿就好了，回来路上在推车里睡着了，小脸红扑扑的。" },
+  { "id": "demo-005", "owner_id": "demo-mom-owner", "date": "2026-05-09", "content": "禾禾今天开始添加米粉辅食，第一口吐出来了，第二口居然主动张嘴，太可爱了。" },
+  { "id": "demo-006", "owner_id": "demo-dad-owner", "date": "2026-05-12", "content": "今天项目上线，连着加了三天班，回家看到两个宝宝都睡了，有点愧疚。" },
+  { "id": "demo-007", "owner_id": "demo-mom-owner", "date": "2026-05-15", "content": "星星有点低烧，37.8 度，精神还行，多喂了水，观察一晚，明天不退就去医院。" },
+  { "id": "demo-008", "owner_id": "demo-mom-owner", "date": "2026-05-16", "content": "星星烧退了，虚惊一场。外婆炖了鸡汤过来，说我脸色比孩子还差，让我补补。" },
+  { "id": "demo-009", "owner_id": "demo-dad-owner", "date": "2026-05-18", "content": "周末带全家去公园，禾禾第一次摸到草地，先是害怕后来玩疯了，星星在推车里睡了全程。" },
+  { "id": "demo-010", "owner_id": "demo-mom-owner", "date": "2026-05-21", "content": "今天真的有点崩溃，两个娃轮流哭，饭都没吃上热的。晚上老公回来接手，我一个人出门走了半小时才缓过来。" },
+  { "id": "demo-011", "owner_id": "demo-dad-owner", "date": "2026-05-24", "content": "禾禾会叫爸爸了！虽然可能只是无意识的音节，但我听到的一瞬间眼眶就热了。" },
+  { "id": "demo-012", "owner_id": "demo-mom-owner", "date": "2026-05-27", "content": "星星最近睡整觉了，连续三晚只醒一次，感觉自己终于活过来了，白天还有精力看了会儿书。" },
+  { "id": "demo-013", "owner_id": "demo-mom-owner", "date": "2026-06-01", "content": "儿童节，给宝宝们拍了周岁照。摄影师逗禾禾笑的时候星星在旁边一脸严肃，反差萌。" },
+  { "id": "demo-014", "owner_id": "demo-dad-owner", "date": "2026-06-04", "content": "工作压力有点大，客户改了三版方案还不满意。晚上抱着星星在阳台看了会儿月亮，心情平复了不少。" },
+  { "id": "demo-015", "owner_id": "demo-mom-owner", "date": "2026-06-08", "content": "禾禾出牙了！下面两颗小白点，怪不得这几天口水特别多还咬东西。" },
+  { "id": "demo-016", "owner_id": "demo-mom-owner", "date": "2026-06-12", "content": "带星星去游泳馆上婴儿游泳课，她在水里蹬腿蹬得特别欢，教练夸她胆子大。" },
+  { "id": "demo-017", "owner_id": "demo-dad-owner", "date": "2026-06-15", "content": "今天和老婆吵了一架，为了谁起夜的事。冷静下来觉得都是太累了，互相道了歉，约好排班表贴冰箱上。" },
+  { "id": "demo-018", "owner_id": "demo-mom-owner", "date": "2026-06-19", "content": "星星第一次自己扶着沙发站起来了！站了好几秒才坐下，全家鼓掌，她自己也拍手。" },
+  { "id": "demo-019", "owner_id": "demo-mom-owner", "date": "2026-06-23", "content": "禾禾最近不肯睡，每晚哄睡要一个小时，绘本读了一本又一本。查了下可能是大运动发展期，先顺着她。" },
+  { "id": "demo-020", "owner_id": "demo-dad-owner", "date": "2026-06-28", "content": "全家第一次坐飞机去看爷爷奶奶，起飞时禾禾哭了一下，含着奶嘴就好了。星星全程看窗外，淡定得像老乘客。" }
+]

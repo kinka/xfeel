@@ -33,9 +33,19 @@ demo 家人名，现改为**运行时从 `family_members`/`member_aliases` 派�
 - 部署者注意：`apps/ingest-api/src/web/mp-qr.png` 是作者公众号二维码（公开物料非隐私），
   自部署时应替换为自己的
 
-### P2：推广配套
+### ✅ P2：推广配套（已完成）
 
-- 英文 README（或双语），CONTRIBUTING.md，issue 模板
-- 一键部署路径：Dockerfile / docker-compose（bun + Ollama 可选）
-- Demo 模式：内置合成家庭数据 + `XFEEL_AUTH_DISABLED` 的演示指引
-- 微信通道文档独立成篇（申请公众号、配域名、菜单发布全流程）
+- **README.en.md**（英文版，与中文版互链；注明产品目前中文优先，i18n 在路线图）
+- **CONTRIBUTING.md**（开发环境、结构速览、提交约定含隐私红线）
+- **Dockerfile + docker-compose.yml + .dockerignore**（bun 镜像，data 卷持久化，
+  可选 `--profile ollama`；YAML 语法已校验，镜像构建待有 Docker 的环境验证）
+- **内置 demo 数据**：`examples/demo-diaries/demo.json` 20 篇合成家庭日记，
+  `bun run import:quick` 秒级导入（已端到端验证）；import 默认路径不再指向仓库外私人目录
+- **docs/wechat-channel.md**：公众号从零接入全流程（服务器配置、用户旅程、
+  OAuth 菜单、二维码替换、5 秒超时与异步回复）
+
+## 发布前最后一手（可选增强）
+
+- GitHub 仓库配置：About 简介、topics、issue 模板、社交预览图
+- 在有 Docker 的环境跑一次 `docker compose up` 全流程
+- 首个 release tag（如 v0.1.0）+ 变更说明

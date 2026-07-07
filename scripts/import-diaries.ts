@@ -2,7 +2,7 @@
  * 导入已有日记到记忆管线
  * 
  * 用法：
- *   bun run scripts/import-diaries.ts                    # 导入 example-diaries 的日记
+ *   bun run scripts/import-diaries.ts                    # 导入内置 demo 日记（examples/demo-diaries）
  *   bun run scripts/import-diaries.ts /path/to/diaries   # 导入指定目录
  *   bun run scripts/import-diaries.ts --skip-llm         # 跳过 LLM，仅用规则抽取
  *   bun run scripts/import-diaries.ts --dry-run          # 只分类，不入库
@@ -29,8 +29,8 @@ const skipLLM = args.includes("--skip-llm");
 const dryRun = args.includes("--dry-run");
 const dirArg = args.find(a => !a.startsWith("--"));
 
-// 默认日记来源
-const DEFAULT_DIARY_DIR = resolve(process.cwd(), "..", "example-diaries", "data");
+// 默认日记来源：仓库内置的合成 demo 数据
+const DEFAULT_DIARY_DIR = resolve(process.cwd(), "examples", "demo-diaries");
 const diaryDir = dirArg || DEFAULT_DIARY_DIR;
 
 async function main() {

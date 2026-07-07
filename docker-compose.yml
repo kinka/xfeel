@@ -1,0 +1,31 @@
+services:
+  xfeel:
+    build: .
+    ports:
+      - "3100:3100"
+    env_file:
+      - .env
+    environment:
+      # 容器内访问宿主机 Ollama；改用远程 LLM 时在 .env 里覆盖 LLM_BASE_URL
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      XFEEL_DB_PATH: /app/data/xfeel.db
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - xfeel-data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # 可选：容器内跑 Ollama（docker compose --profile ollama up）
+  # 启用后把 LLM_BASE_URL/OLLAMA_BASE_URL 指向 http://ollama:11434
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  xfeel-data:
+  ollama-models:
