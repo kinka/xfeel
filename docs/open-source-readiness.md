@@ -13,26 +13,25 @@
 
 ## 待办（按优先级）
 
-### P0：实体词表去硬编码（通用性核心坎）
+### ✅ P0：实体词表去硬编码（已完成）
 
-家人昵称「星星/禾禾」及其别名表硬编码在六处核心逻辑中：
+规则兜底路径（分类关键词、实体归一、检索意图、关键词召回、查询扩展）原先硬编码
+demo 家人名，现改为**运行时从 `family_members`/`member_aliases` 派生**：
 
-| 文件 | 内容 |
-|---|---|
-| `packages/domain/src/normalization.ts` | `KNOWN_ENTITY_LABELS`、别名→规范名映射、"宝宝们"展开 |
-| `packages/extractors/src/classify.ts` | 分类规则兜底的实体关键词 |
-| `packages/extractors/src/extract.ts` | 抽取提示词里的已知实体列表 |
-| `packages/conversation/src/recall-intent.ts` | 规则兜底 surface→实体映射 |
-| `packages/conversation/src/conversation.ts` | 召回别名扩展 |
-| `packages/retrieval/src/query-expansion.ts` | 查询扩展别名组 |
+- db 层 `getEntityLexiconForOwner(ownerId)`：按 owner 取本家庭 global 别名映射 + 孩子列表
+- domain 归一只内置通用亲属称谓（父亲→爸爸 等）；无 profile 时昵称原样保留、集合称呼不臆测展开
+- `expandRecallQuery(text, family?)` 接受运行时词典；`recall()` 按 owner 自动加载
+- 测试用 fixture aliasContext；已用真实家庭数据验证词典派生正确
 
-**改法**：数据库已有 `family_members` + `member_aliases` 表和 `getAliasContextForSpeaker()`（LLM 抽取已在用）。把上述规则兜底和提示词的实体词表改为**运行时从家庭别名表派生**，只保留通用角色词（妈妈/爸爸/外婆/宝宝…）为内置。测试改用虚构 fixture 家庭。demo/文档中的「星星/禾禾」作为示例数据保留无妨。
+### ✅ P1：发布准备（已完成）
 
-### P1：发布准备
-
-- **git 历史决策**：现无 remote。历史含真实家庭对话片段引用（修复脚本、commit 信息）。建议**首发时 squash 或以孤儿分支重开历史**，老历史留在私有备份。→ 需要 owner 决定
-- `docs/` 里的 PRD/架构文档含真实使用数据截图与片段，发布前过一遍（`docs/assets/*.png` 两张截图确认无隐私）。
-- `data/eval/*.json` 两个 eval 集含真实日记查询语句，发布前替换为合成数据或移除。
+- **git 历史已重开**（2026-07-07）：orphan 单提交 init，旧历史（含真实家庭数据引用）
+  完整备份在仓库外 `../xfeel-v3-history-backup-2026-07-07.bundle`，仓库内旧对象已 GC 清除，
+  push 到任何 remote 都不会带出旧历史。**该 bundle 勿入任何公开位置。**
+- 测试/注释中残留的真实家人昵称已替换为虚构 demo 名
+- `docs/assets/*.png` 两张截图确认为 demo 数据；`data/eval/*.json` 此前已 sanitized
+- 部署者注意：`apps/ingest-api/src/web/mp-qr.png` 是作者公众号二维码（公开物料非隐私），
+  自部署时应替换为自己的
 
 ### P2：推广配套
 
