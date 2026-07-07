@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "model": "sonnet",
+            "prompt": "A project file was just written or edited. Hook input: $ARGUMENTS.\n\n1. Extract the file path from tool_input.file_path or tool_response.filePath.\n2. If the file is not a TypeScript/JavaScript source file under packages/ or apps/, skip silently.\n3. Run `git diff -- <file>` to see exactly what changed.\n4. Review the change for: correctness bugs, simplification opportunities, and whether tests/docs need updates.\n5. Output a concise, actionable review. If everything looks good, say so briefly.",
+            "statusMessage": "Running file change review...",
+            "timeout": 120
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "if": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "agent",
+            "model": "sonnet",
+            "prompt": "A git commit was just made. Hook input: $ARGUMENTS.\n\n1. Run `git show HEAD --stat` and `git diff HEAD~1 HEAD` to inspect the latest commit.\n2. Review the commit for: correctness bugs, simplification opportunities, and whether tests/docs need updates.\n3. Output a concise, actionable review focused on the most important issues.",
+            "statusMessage": "Running commit review...",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}

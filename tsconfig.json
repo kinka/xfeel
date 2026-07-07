@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@xfeel/domain/*": ["packages/domain/src/*"],
+      "@xfeel/db/*": ["packages/db/src/*"],
+      "@xfeel/extractors/*": ["packages/extractors/src/*"],
+      "@xfeel/retrieval/*": ["packages/retrieval/src/*"],
+      "@xfeel/ai-client/*": ["packages/ai-client/src/*"]
+    },
+    "types": ["bun-types"]
+  },
+  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "scripts/**/*.ts"]
+}

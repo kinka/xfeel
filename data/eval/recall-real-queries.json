@@ -1,0 +1,561 @@
+{
+  "version": 1,
+  "owners": {
+    "dad": "demo-dad-owner",
+    "mom": "demo-mom-owner"
+  },
+  "notes": [
+    "This fixture has been sanitized for open-source use.",
+    "Owner ids, child aliases, and query wording are synthetic examples derived from retrieval regression shapes."
+  ],
+  "cases": [
+    {
+      "id": "sleep-dad-oy-night-cough",
+      "category": "sleep",
+      "query": "爸爸记得阿星夜咳夜醒那次吗",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["be4b21e3-413e-4f57-82d4-d214c6f50b2a"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["health", "sleep"],
+        "entities_any": ["星星"],
+        "tags_any": ["咳嗽", "夜醒", "发烧"],
+        "terms_any": ["夜咳", "夜醒", "咳嗽"],
+        "weak_terms_any": ["星星", "醒"]
+      }
+    },
+    {
+      "id": "sleep-dad-books-magnetic",
+      "category": "sleep",
+      "query": "阿禾阿星看绘本磁力片不想睡觉",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:nK6IAZFAcq:rule:49319dbf-3929-4a66-9b66-06abf2513c2c"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["sleep"],
+        "entities_any": ["宝宝们"],
+        "tags_any": ["自主入睡"],
+        "terms_any": ["绘本", "磁力片", "不想睡觉"],
+        "weak_terms_any": ["一本又一本", "困"]
+      }
+    },
+    {
+      "id": "sleep-mom-collapse-rhythm",
+      "category": "sleep",
+      "query": "妈妈昨晚带睡崩溃睡不好吃不饱",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["sleep"],
+        "entities_any": ["宝宝们", "妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["带睡", "崩溃", "睡不好", "吃不饱"],
+        "weak_terms_any": ["节奏", "生活习惯"]
+      }
+    },
+    {
+      "id": "sleep-dad-grab-shunde",
+      "category": "sleep",
+      "query": "禾禾从顺德回来晚上不肯睡觉闹腾",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["sleep"],
+        "entities_any": ["禾禾", "爸爸"],
+        "tags_any": ["自主入睡", "育儿压力"],
+        "terms_any": ["顺德", "闹腾", "不肯", "睡觉"],
+        "weak_terms_any": ["伴侣昵称", "周末"]
+      }
+    },
+    {
+      "id": "sleep-dad-day-night-tired",
+      "category": "sleep",
+      "query": "爸爸白天夜里都没睡好很疲惫",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["sleep"],
+        "entities_any": ["爸爸"],
+        "terms_any": ["白天夜里", "没睡好", "疲惫"],
+        "weak_terms_any": ["有气无力", "这一周"]
+      }
+    },
+    {
+      "id": "sleep-mom-health-worry",
+      "category": "sleep",
+      "query": "妈妈晚上睡不着担心身体会出问题",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["sleep"],
+        "entities_any": ["妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["睡不着", "担心", "健康"],
+        "weak_terms_any": ["心脏", "眩晕"]
+      }
+    },
+    {
+      "id": "health-dad-oy-fever-helpless",
+      "category": "health",
+      "query": "阿星突然发烧，爸爸手足无措",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["health"],
+        "entities_any": ["爸爸", "星星"],
+        "tags_any": ["发烧", "育儿压力"],
+        "terms_any": ["阿星", "发烧", "手足无措"],
+        "weak_terms_any": ["无助", "焦虑"]
+      }
+    },
+    {
+      "id": "health-dad-grab-fever-half-night",
+      "category": "health",
+      "query": "阿禾发烧半夜哭，没之前的力气",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:VgCkku6Ij5:rule:7c17d2b2-0840-462a-a533-5a52c7ec4478", "5d3cbc02-c2d9-46a7-8675-0043d531f454"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["health"],
+        "entities_any": ["宝宝们"],
+        "tags_any": ["发烧", "育儿压力"],
+        "terms_any": ["阿禾", "发烧", "半夜哭", "没之前的力气"],
+        "weak_terms_any": ["不那么慌", "经验"]
+      }
+    },
+    {
+      "id": "health-mom-vomit-diarrhea-collapse",
+      "category": "health",
+      "query": "妈妈记录两个娃上吐下泻崩溃",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["health"],
+        "entities_any": ["宝宝们", "妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["上吐下泻", "洗衣服", "换床单", "崩溃"],
+        "weak_terms_any": ["呻吟", "大哭"]
+      }
+    },
+    {
+      "id": "health-dad-cold-cough-five-days",
+      "category": "health",
+      "query": "宝宝们发烧咳嗽感冒照料五天",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:dFEDGpswnY:rule:63afb8f3-83fd-43af-8576-f9bd53f83df7", "2cf8cea1-d8de-4c2f-a3e5-bd67dd81e8c7"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["health"],
+        "entities_any": ["宝宝们"],
+        "tags_any": ["发烧", "感冒", "咳嗽"],
+        "terms_any": ["发烧", "咳嗽", "感冒", "五天照料"],
+        "weak_terms_any": ["托育中心", "好转"]
+      }
+    },
+    {
+      "id": "health-dad-diarrhea-toilet",
+      "category": "health",
+      "query": "爸爸拉肚子到处找厕所腿软",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["health"],
+        "entities_any": ["爸爸"],
+        "tags_any": ["腹泻", "育儿压力"],
+        "terms_any": ["拉肚子", "厕所", "腿软"],
+        "weak_terms_any": ["坑位", "第4次"]
+      }
+    },
+    {
+      "id": "health-mom-dizzy-earth",
+      "category": "health",
+      "query": "妈妈头晕眩晕地球在转",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["health"],
+        "entities_any": ["妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["头好晕", "眩晕", "地球在转"],
+        "weak_terms_any": ["精神好差", "胡思乱想"]
+      }
+    },
+    {
+      "id": "health-dad-bad-tooth-book",
+      "category": "health",
+      "query": "阿禾被牙婆婆绘本吓到不肯刷牙",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["health"],
+        "entities_any": ["禾禾", "爸爸"],
+        "terms_any": ["牙婆婆", "绘本", "不肯配合刷牙"],
+        "weak_terms_any": ["点名", "坏牙"]
+      }
+    },
+    {
+      "id": "health-dad-park-fever",
+      "category": "health",
+      "query": "两个娃去公园游乐场当晚又发烧",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:FQMveGvphD:rule:ab8cec54-b5ba-4391-9cd4-5b2d36f36a35", "a925ecf5-d4f2-43f4-9e26-aa54502c0aa7"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["health"],
+        "entities_any": ["星星", "宝宝们"],
+        "tags_any": ["发烧", "育儿压力"],
+        "terms_any": ["公园游乐场", "当晚", "发烧"],
+        "weak_terms_any": ["剪好了指甲", "一周任务"]
+      }
+    },
+    {
+      "id": "feeding-mom-solids-rice-orange",
+      "category": "feeding",
+      "query": "星星午餐辅食米粉和橙子",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "ids": ["diary:NTbWLxSc53:rule:d71a78c9-eb7e-4ce5-8dab-26bcc8682f8e", "8e33ecd5-d1a0-4040-a6b6-6de2219967ae"],
+        "owner_id": "demo-mom-owner",
+        "event_types": ["feeding"],
+        "entities_any": ["星星"],
+        "tags_any": ["辅食"],
+        "terms_any": ["午餐辅食", "米粉", "橙子"],
+        "weak_terms_any": ["三勺", "一块"]
+      }
+    },
+    {
+      "id": "feeding-mom-choking-milk",
+      "category": "feeding",
+      "query": "星星呛奶鼻子溢出，妈妈及时处理",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["feeding"],
+        "entities_any": ["星星", "妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["呛奶", "鼻子溢出", "及时处理"],
+        "weak_terms_any": ["大声哭", "四点"]
+      }
+    },
+    {
+      "id": "feeding-dad-icecream-vomit",
+      "category": "feeding",
+      "query": "阿星吃冰激凌吐了好几次",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["feeding"],
+        "entities_any": ["爸爸", "宝宝们"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["冰激凌", "吐了好几次", "吃啥"],
+        "weak_terms_any": ["过于放飞", "累到不行"]
+      }
+    },
+    {
+      "id": "feeding-dad-after-school-excited",
+      "category": "feeding",
+      "query": "爸爸下班接娃，两个小腿摇呀摇兴奋跳下来",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:Oo9vp8cekc:rule:83cc4085-c1e3-4236-a3e3-f538a9d67d0c", "diary:ik3wdMcEyr:rule:2b7099fb-3472-480e-a774-53167f9c2a5d", "afbe344d-2b24-4895-8168-3095b68280fe", "d0d18c2b-6f01-4320-8ced-81d5fe191589"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["feeding"],
+        "entities_any": ["星星", "禾禾"],
+        "tags_any": ["自主进食"],
+        "terms_any": ["下班回来接娃", "小腿摇", "兴奋"],
+        "weak_terms_any": ["门口等我", "跳了下来"]
+      }
+    },
+    {
+      "id": "feeding-dad-grab-mango",
+      "category": "feeding",
+      "query": "阿禾没吃过芒果却经常挂嘴边",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:Oy4kcw6k2M:rule:6eb45f91-0d67-4525-b5ae-674c365b0e94"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["feeding"],
+        "entities_any": ["宝宝们"],
+        "terms_any": ["阿禾", "芒果", "挂嘴边"],
+        "weak_terms_any": ["没吃过", "惊讶"]
+      }
+    },
+    {
+      "id": "feeding-mom-last-bottle",
+      "category": "feeding",
+      "query": "妈妈安排最后一顿奶十一点喝完，奶粉母乳",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["feeding"],
+        "entities_any": ["宝宝们", "妈妈"],
+        "tags_any": ["母乳", "奶粉", "育儿压力"],
+        "terms_any": ["最后一顿", "十一点喝完", "奶粉"],
+        "weak_terms_any": ["十点半", "140"]
+      }
+    },
+    {
+      "id": "milestone-dad-standing-longer",
+      "category": "milestone",
+      "query": "宝宝们学站时间越来越长，有成就感",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:bcJeeAZTZs:rule:06a7cbac-ff82-444e-8dab-e47b661fc879", "2c78814e-ba61-434e-aaaa-678390cd1019"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["milestone"],
+        "entities_any": ["星星", "禾禾", "宝宝们"],
+        "tags_any": ["成就感"],
+        "terms_any": ["学站", "站的时间", "成就感"],
+        "weak_terms_any": ["越来越长", "宝宝们"]
+      }
+    },
+    {
+      "id": "milestone-dad-walk-school",
+      "category": "milestone",
+      "query": "小朋友走路上学，摸路灯杆子捡树叶",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["milestone"],
+        "entities_any": ["宝宝们", "妈妈", "爸爸"],
+        "tags_any": ["走路", "育儿压力"],
+        "terms_any": ["走路上学", "路灯杆子", "捡树叶"],
+        "weak_terms_any": ["挖坑", "伴侣昵称很累"]
+      }
+    },
+    {
+      "id": "milestone-dad-four-words",
+      "category": "milestone",
+      "query": "阿禾会说四个字，爸爸抱抱",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:Qqtl8Nxe0g:rule:5cc29527-a04c-4fab-8416-8c2e947e6b8b", "f6ca2627-0caf-4b47-a90a-11ea200fab13"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["milestone"],
+        "entities_any": ["禾禾"],
+        "terms_any": ["4个字", "爸爸抱抱", "语言进展"],
+        "weak_terms_any": ["连起来", "太棒了"]
+      }
+    },
+    {
+      "id": "milestone-dad-rollover",
+      "category": "milestone",
+      "query": "两个娃像比赛一样练翻身",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["milestone"],
+        "entities_any": ["爸爸"],
+        "tags_any": ["翻身"],
+        "terms_any": ["比赛", "练翻身"],
+        "weak_terms_any": ["神奇", "两个娃"]
+      }
+    },
+    {
+      "id": "milestone-mom-slow-down",
+      "category": "milestone",
+      "query": "妈妈听阿妹妹重复慢慢来不要着急",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["milestone"],
+        "entities_any": ["宝宝们", "妈妈"],
+        "terms_any": ["慢慢来", "不要着急", "重复"],
+        "weak_terms_any": ["磁力片", "旁边看手机"]
+      }
+    },
+    {
+      "id": "milestone-dad-oy-language-boom",
+      "category": "milestone",
+      "query": "阿星语言大爆发，会主动表达需求",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "ids": ["diary:VZRVYPPqDw:rule:acdfa5a7-efdf-465f-bbe1-4a12d1ca19b2"],
+        "owner_id": "demo-dad-owner",
+        "event_types": ["feeding", "milestone"],
+        "entities_any": ["星星"],
+        "terms_any": ["语言大爆发", "主动表达需求", "妹妹要吃"],
+        "weak_terms_any": ["磁力片", "百合"]
+      }
+    },
+    {
+      "id": "emotion-dad-wife-collapse",
+      "category": "emotion",
+      "query": "伴侣昵称带娃要崩溃，爸爸请假带娃",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["other", "emotion", "care"],
+        "entities_any": ["妈妈", "爸爸"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["崩溃", "请假带娃", "状态"],
+        "weak_terms_any": ["三个人", "表现"]
+      }
+    },
+    {
+      "id": "emotion-mom-independent-collapse",
+      "category": "emotion",
+      "query": "妈妈独自带娃累到崩溃，腰酸肩酸",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["sleep", "emotion", "other"],
+        "entities_any": ["星星", "禾禾", "宝宝们", "妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["独自带娃", "崩溃", "腰酸肩酸"],
+        "weak_terms_any": ["出门", "第三天"]
+      }
+    },
+    {
+      "id": "work-dad-proxy-pressure",
+      "category": "work",
+      "query": "爸爸折腾代理压力焦虑，想去干具体工作",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["work"],
+        "entities_any": ["爸爸"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["代理", "压力", "焦虑", "具体的工作"],
+        "weak_terms_any": ["停止折腾", "干些具体"]
+      }
+    },
+    {
+      "id": "work-mom-big-order",
+      "category": "work",
+      "query": "妈妈潜在大订单五百多万，又怀疑是骗子",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["work"],
+        "entities_any": ["妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["大订单", "五百多万", "骗子"],
+        "weak_terms_any": ["抱有期待", "误打误撞"]
+      }
+    },
+    {
+      "id": "work-dad-xfeel-stage",
+      "category": "work",
+      "query": "爸爸完成 xfeel 重构第一阶段，改了数据结构",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["work"],
+        "entities_any": ["爸爸"],
+        "terms_any": ["xfeel", "重构", "第一阶段", "数据结构"],
+        "weak_terms_any": ["花的时间", "今晚"]
+      }
+    },
+    {
+      "id": "work-mom-client-conflict",
+      "category": "work",
+      "query": "妈妈客户冲突，职场人际关系压力",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "event_types": ["milestone", "work"],
+        "entities_any": ["妈妈"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["客户冲突", "职场人际关系", "心理压力"],
+        "weak_terms_any": ["工作日常", "矛盾"]
+      }
+    },
+    {
+      "id": "emotion-dad-swimming-joy",
+      "category": "emotion",
+      "query": "爸爸带禾禾星星去游泳，大家很开心",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["other", "emotion"],
+        "entities_any": ["星星", "禾禾", "爸爸"],
+        "tags_any": ["天气"],
+        "terms_any": ["游泳", "喜悦", "幸福"],
+        "weak_terms_any": ["轻松", "天气真不错"]
+      }
+    },
+    {
+      "id": "travel-dad-shunde-return",
+      "category": "travel_play_reading",
+      "query": "爸爸周六顺德中午回深圳，带娃很累",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["feeding", "other", "sleep"],
+        "entities_any": ["宝宝们", "爸爸"],
+        "tags_any": ["育儿压力"],
+        "terms_any": ["顺德", "回深圳", "周六"],
+        "weak_terms_any": ["不到2点", "不堵车"]
+      }
+    },
+    {
+      "id": "travel-mom-japan-typhoon",
+      "category": "travel_play_reading",
+      "query": "妈妈日本之行遇到台风，航班取消又改签",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "ids": ["diary:4eVdfDOFqw:rule:b84db009-ec11-4d28-b692-0a7ed2a1a087", "be8ac0bf-f7a8-4fee-8da0-bd3e15235064"],
+        "owner_id": "demo-mom-owner",
+        "event_types": ["health", "other"],
+        "entities_any": ["宝宝们"],
+        "terms_any": ["日本之行", "台风", "航班被取消", "改签"],
+        "weak_terms_any": ["期待", "延迟"]
+      }
+    },
+    {
+      "id": "reading-dad-picture-book-swing",
+      "category": "travel_play_reading",
+      "query": "爸爸讲绘本说到荡秋千，阿禾眼睛亮了",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["sleep"],
+        "entities_any": ["禾禾", "宝宝们", "爸爸"],
+        "tags_any": ["自主入睡", "成就感"],
+        "terms_any": ["讲绘本", "荡秋千", "眼睛都亮了"],
+        "weak_terms_any": ["一愣愣", "开心"]
+      }
+    },
+    {
+      "id": "play-dad-birthday-haidilao",
+      "category": "travel_play_reading",
+      "query": "禾禾星星两岁生日，海底捞乐园木粒水池",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["sleep", "other"],
+        "entities_any": ["星星", "禾禾", "宝宝们", "爸爸"],
+        "terms_any": ["两岁生日", "海底捞", "木粒水池"],
+        "weak_terms_any": ["夹娃娃", "妞妞姐姐"]
+      }
+    },
+    {
+      "id": "play-dad-magnetic-wall",
+      "category": "travel_play_reading",
+      "query": "阿星起床拖枕头猫猫去沙发，看磁力墙",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["milestone"],
+        "entities_any": ["宝宝们", "爸爸"],
+        "terms_any": ["磁力墙", "枕头", "猫猫", "沙发"],
+        "weak_terms_any": ["次卧", "早上"]
+      }
+    },
+    {
+      "id": "travel-dad-haimen-waves",
+      "category": "travel_play_reading",
+      "query": "鲘门海浪声很大，禾禾星星玩一天后哄睡",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "event_types": ["sleep"],
+        "entities_any": ["星星", "禾禾", "妈妈", "爸爸"],
+        "tags_any": ["育儿压力", "天气"],
+        "terms_any": ["鲘门", "海浪声", "玩了一天", "哄"],
+        "weak_terms_any": ["小镇", "起起伏伏"]
+      }
+    }
+  ]
+}

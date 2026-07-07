@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>xfeel 管理调试台</title>
+<style>
+:root{--bg:#0a0f1e;--panel:#0f1729;--panel2:#15203a;--line:#263247;--text:#e6edf6;--muted:#8a97ab;--blue:#60a5fa;--blue2:#818cf8;--green:#34d399;--red:#fb7185;--shadow:0 1px 3px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.55)}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 620px at 72% -12%,#172441 0,var(--bg) 56%) fixed;color:var(--text);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#2a3650;border-radius:99px;border:2px solid transparent;background-clip:content-box}::-webkit-scrollbar-thumb:hover{background:#3a4a6a;background-clip:content-box}
+header{border-bottom:1px solid var(--line);background:rgba(11,17,32,.8);backdrop-filter:blur(12px);padding:14px 20px;position:sticky;top:0;z-index:5}.wrap{max-width:1280px;margin:0 auto}.top{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:18px;margin:0;font-weight:700;background:linear-gradient(120deg,var(--blue),var(--blue2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}.sub{color:var(--muted);font-size:12px}
+.grid{display:grid;grid-template-columns:minmax(360px,1.2fr) minmax(320px,.8fr);gap:16px;padding:18px 20px 32px}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.02),transparent),var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.card h2{font-size:13px;font-weight:600;letter-spacing:.02em;margin:0;padding:13px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.015)}.body{padding:16px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.toolbar>*{min-height:36px}
+select,input,textarea{background:#0a1322;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font:inherit;transition:border-color .15s,box-shadow .15s}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(96,165,250,.18)}input[type=date]{color-scheme:dark}
+button{background:linear-gradient(180deg,#2563eb,#1d4ed8);color:#fff;border:1px solid #3b6fe0;border-radius:8px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .08s,filter .15s,background .15s}
+button:hover{filter:brightness(1.08)}button:active{transform:translateY(1px)}
+button.secondary{background:#1a2336;border-color:var(--line);color:var(--text)}button.secondary:hover{background:#212d44}
+button.archive{background:linear-gradient(180deg,#059669,#047857);border-color:#0a8f6c}button:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.chat{height:440px;overflow:auto;background:#0a1322;border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:11px}
+.msg{max-width:80%;padding:10px 13px;border-radius:14px;border:1px solid var(--line);white-space:pre-wrap;box-shadow:0 1px 2px rgba(0,0,0,.25);animation:fade .2s ease}
+.msg.user{align-self:flex-end;background:linear-gradient(180deg,#2a4ba8,#1e3a8a);border-color:#3b5bbf;border-bottom-right-radius:4px}
+.msg.assistant{align-self:flex-start;background:#141d30;border-bottom-left-radius:4px}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.chat-img{max-width:220px;max-height:220px;border-radius:10px;display:block;margin:2px 0 6px;border:1px solid var(--line);cursor:zoom-in;transition:transform .12s}.chat-img:hover{transform:scale(1.02)}
+.del-btn{float:right;background:transparent;border:none;color:#8a97ab;cursor:pointer;font-size:12px;line-height:1;padding:0 2px;margin-left:6px;opacity:.5;transition:opacity .15s,color .15s}.del-btn:hover{opacity:1;color:var(--red)}
+.meta{font-size:11px;color:var(--muted);margin-bottom:4px}
+.composer{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:12px}.composer textarea{height:72px;resize:vertical}
+.day-summary{margin:10px 0 12px;background:#0a1322;border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--muted);font-size:12px}.day-summary b{color:var(--text)}
+.list{display:flex;flex-direction:column;gap:8px;max-height:250px;overflow:auto}.diag-list{max-height:380px}
+.item{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 11px;transition:border-color .15s,background .15s}.item:hover{border-color:#33425e}.item b{color:var(--blue)}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 8px;color:var(--muted);font-size:11px;margin-right:4px;background:rgba(255,255,255,.02)}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.tag{border:1px solid var(--line);border-radius:99px;padding:1px 7px;color:var(--muted);font-size:10px}
+.json{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.status{color:var(--muted)}.ok{color:var(--green)}.err{color:var(--red)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+@media (max-width:900px){.grid{grid-template-columns:1fr}.split{grid-template-columns:1fr}.msg{max-width:92%}}
+</style>
+</head>
+<body>
+<header><div class="wrap top"><div><h1>xfeel 管理调试台</h1><div class="sub">管线诊断 / 归档重跑 / 数据清理 · 普通聊 / 记： / 查： / 刚刚那条别记 / 改： / 总结今天</div></div><div class="toolbar"><a class="sub" href="/app">用户端</a><a class="sub" href="/dashboard">数据仪表盘</a><span class="status" data-testid="status">idle</span></div></div></header>
+<main class="wrap grid">
+  <section class="card"><h2>对话</h2><div class="body">
+    <div class="toolbar"><select data-testid="owner-select" id="owner"><option value="__PLAYGROUND_DAD_OWNER_ID__" selected>爸爸</option><option value="__PLAYGROUND_MOM_OWNER_ID__">妈妈</option></select><button class="secondary" data-testid="prev-day" id="prevDay">←</button><button class="secondary" data-testid="yesterday" id="yesterday">昨天</button><button class="secondary" data-testid="today" id="today">今天</button><button class="secondary" data-testid="next-day" id="nextDay">→</button><input data-testid="date-input" id="date" type="date" /><button class="secondary" data-testid="refresh-turns" id="refreshTurns">刷新当天对话</button></div>
+    <div class="day-summary" data-testid="day-summary" id="daySummary">正在加载当天状态...</div>
+    <div class="chat" data-testid="chat-log" id="chatLog"></div>
+    <div class="composer"><textarea data-testid="message-input" id="message" placeholder="普通聊；或：记：今天星星自己走了三步；查：夜醒；刚刚那条别记；改：今天是禾禾自己走了三步；总结今天"></textarea><button data-testid="send-message" id="send">发送</button></div>
+  </div></section>
+  <aside class="card"><h2>召回 / Intent / Extract / 归档</h2><div class="body">
+    <div class="split"><div><div class="sub">本次召回</div><div class="list" data-testid="recall-list" id="recallList"></div></div><div><div class="sub">当天 Turns</div><div class="list" data-testid="turn-list" id="turnList"></div></div></div>
+    <div style="margin-top:12px"><div class="sub">Intent / Extract</div><div class="list diag-list" data-testid="diagnostic-list" id="diagnosticList"></div></div>
+    <div class="actions"><button class="secondary" data-testid="archive-preview" id="archivePreview">预览归档</button><button class="archive" data-testid="run-archive" id="archive">重新归档</button><button class="secondary" data-testid="load-archives" id="loadArchives">查看归档</button></div>
+    <div style="margin-top:12px"><div class="sub">归档结果</div><div class="list" data-testid="archive-list" id="archiveList"></div></div>
+  </div></aside>
+  <section class="card" style="grid-column:1/-1"><h2>记忆理解 / 滚动总结（L1 当天 · L2 近期 · L3 长期）<button class="secondary" id="toggleContext" style="float:right;margin-top:-4px">收起/展开</button></h2><div class="body" id="contextBody">
+    <div class="split">
+      <div>
+        <div class="sub">L1 · 当天 ambient（实际拼进 prompt 的文本）</div>
+        <div class="json" id="ctxAmbientText" style="max-height:220px;overflow:auto;background:#0a1322;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:10px"></div>
+        <div class="sub" id="ctxAmbientMeta"></div>
+      </div>
+      <div>
+        <div class="sub">L2+L3 · 注入回复的理解层文本</div>
+        <div class="json" id="ctxUnderstandingText" style="max-height:220px;overflow:auto;background:#0a1322;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:10px"></div>
+        <div class="sub" id="ctxUnderstandingMeta"></div>
+      </div>
+    </div>
+    <div class="split" style="margin-top:12px">
+      <div>
+        <div class="sub">L3 长期理解画像（understandings，按 confidence 排）</div>
+        <div class="list" id="ctxLongTermList"></div>
+      </div>
+      <div>
+        <div class="sub">L2 近期状态画像（notable events / open threads）</div>
+        <div class="list" id="ctxRecentList"></div>
+      </div>
+    </div>
+  </div></section>
+</main>
+<script src="/web/auth.js"></script>
+<script>
+const $=s=>document.querySelector(s);const DEFAULT_DATE="__PLAYGROUND_DATE__";const TODAY=DEFAULT_DATE;const statusEl=$('[data-testid="status"]');const dayState={turns:[],diagnostics:[],archives:[]};
+function setStatus(text,cls=''){statusEl.textContent=text;statusEl.className='status '+cls}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function owner(){return $('#owner').value} function date(){return $('#date').value}
+function ownerLabel(){return $('#owner').selectedOptions[0]?.textContent||owner()}
+async function api(path,opts={}){const r=await window.XFEEL_AUTH.authFetch(path,{headers:{'Content-Type':'application/json'},...opts});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||path+' '+r.status);return data}
+function parseJSON(x,d){try{return typeof x==='string'?JSON.parse(x):(x??d)}catch{return d}}
+function initStateFromURL(){const params=new URLSearchParams(location.search);const requestedOwner=params.get('owner_id')||params.get('user_id');if(requestedOwner&&Array.from($('#owner').options).some(o=>o.value===requestedOwner))$('#owner').value=requestedOwner;const requestedDate=params.get('date');$('#date').value=/^\d{4}-\d{2}-\d{2}$/.test(requestedDate||'')?requestedDate:DEFAULT_DATE}
+function renderOwnerOptions(me){
+  // admin 带 owner_groups：按家庭分 <optgroup>，能选到任意家庭/任意成员（含孩子），不再只有爸爸妈妈
+  if(me.owner_groups&&me.owner_groups.length){
+    return me.owner_groups.map(g=>'<optgroup label="'+esc(g.family_label)+'">'+g.members.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.label)+'</option>').join('')+'</optgroup>').join('');
+  }
+  return me.owners.map((o,i)=>'<option value="'+esc(o.id)+'"'+(i===0?' selected':'')+'>'+esc(o.label)+'</option>').join('');
+}
+async function applyMe(){try{const me=await api('/web/me');if(me&&me.owners&&me.owners.length){const params=new URLSearchParams(location.search);const want=params.get('owner_id')||params.get('user_id')||owner();$('#owner').innerHTML=renderOwnerOptions(me);if(Array.from($('#owner').options).some(o=>o.value===want))$('#owner').value=want;else $('#owner').selectedIndex=0}}catch(e){/* 拉取失败就用页面默认 owner */}}
+function syncURL(){const params=new URLSearchParams(location.search);params.set('owner_id',owner());params.set('date',date());history.replaceState(null,'','?'+params.toString())}
+function addDays(value,delta){const d=new Date(value+'T00:00:00.000Z');d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10)}
+function localTime(raw){const s=String(raw||'');if(!s)return'';const normalized=s.includes('T')?s:(s.replace(' ','T')+'Z');const d=new Date(normalized);return Number.isNaN(d.getTime())?s:d.toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})+' CST'}
+function archiveIds(a){const ids=parseJSON(a?.event_ids,a?.event_ids||[]);return Array.isArray(ids)?ids:[]}
+function updateDaySummary(){const turns=dayState.turns||[];const diagnostics=dayState.diagnostics||[];const archives=dayState.archives||[];const userTurns=turns.filter(t=>t.role==='user').length;const unarchived=turns.filter(t=>!t.archive_id).length;const archive=archives[0];const archiveText=archive?(archive.status+' · 事件 '+archiveIds(archive).length):'无归档';const empty=turns.length===0?' · 当前日期没有 turns':'';$('#daySummary').innerHTML='<b>'+esc(ownerLabel())+'</b> · <b>'+esc(date())+'</b> · turns '+turns.length+' / user '+userTurns+' · diagnostics '+diagnostics.length+' · archive '+esc(archiveText)+' · 未归档 '+unarchived+empty}
+function addMsg(role,content){const div=document.createElement('div');div.className='msg '+role;div.innerHTML='<div class="meta">'+(role==='user'?'用户':'助手')+'</div>'+esc(content);$('#chatLog').appendChild(div);$('#chatLog').scrollTop=$('#chatLog').scrollHeight}
+function renderRecall(items){$('#recallList').innerHTML=items.length?items.map(x=>'<div class="item"><b>'+esc(x.summary)+'</b><div class="sub">'+esc(x.event_time||'')+' '+esc(x.emotion||'')+'</div></div>').join(''):'<div class="item sub">暂无召回</div>'}
+function renderChatTurns(turns){$('#chatLog').innerHTML=turns.length?turns.map(t=>{const photos=(t.media||[]).map(m=>'<img class="chat-img" src="'+window.XFEEL_AUTH.mediaURL('/media/'+encodeURIComponent(m.id))+'" loading="lazy" alt="">').join('');const del=t.role==='user'?'<button class="del-btn" title="删除这条对话及其派生事件/图片" onclick="delTurn(\''+t.id+'\')">✕</button>':'';return '<div class="msg '+(t.role==='assistant'?'assistant':'user')+'"><div class="meta">'+del+esc(t.role)+' · '+esc(t.source||'')+(t.created_at?' · '+esc(localTime(t.created_at)):'')+'</div>'+photos+esc(t.content)+'</div>'}).join(''):'<div class="item sub">当天没有对话；可以切到昨天，或直接发一条测试消息。</div>';$('#chatLog').scrollTop=$('#chatLog').scrollHeight}
+async function refreshTurns(){const data=await api('/conversation/turns?owner_id='+encodeURIComponent(owner())+'&date='+encodeURIComponent(date())+'&include_archived=true&limit=200');dayState.turns=data.turns||[];renderChatTurns(dayState.turns);$('#turnList').innerHTML=dayState.turns.length?dayState.turns.map(t=>'<div class="item" data-archived="'+(t.archive_id?'true':'false')+'"><span class="pill">'+esc(t.role)+'</span><span class="pill">'+(t.archive_id?'已归档':'未归档')+'</span><span class="pill">'+esc(localTime(t.created_at))+'</span><div>'+esc(t.content.slice(0,120))+'</div></div>').join(''):'<div class="item sub">暂无对话</div>';updateDaySummary();return data}
+async function refreshDiagnostics(){const data=await api('/conversation/playground/diagnostics?owner_id='+encodeURIComponent(owner())+'&date='+encodeURIComponent(date())+'&limit=200');dayState.diagnostics=data.diagnostics||[];renderDiagnostics(dayState.diagnostics);updateDaySummary();return data}
+function renderContext(ctx){
+  const a=ctx.ambient||{},u=ctx.understanding||{},lt=ctx.long_term_profile,rc=ctx.recent_profile;
+  $('#ctxAmbientText').textContent=a.assembled_text||'（空）';
+  $('#ctxAmbientMeta').innerHTML=[
+    '<span class="pill">近7天归档 '+(a.archive_summaries||[]).length+'</span>',
+    '<span class="pill">今日片段 '+(a.today_turn_snippets||[]).length+'</span>',
+    '<span class="pill">开放事实 '+(a.open_facts||[]).length+'</span>',
+    '<span class="pill">'+(a.rolling_weekly_context_used?'用滚动周报文件':'用归档兜底拼装')+'</span>',
+  ].join(' ');
+  $('#ctxUnderstandingText').textContent=u.assembled_text||'（暂无 L2/L3 画像，需先跑 profile-builder）';
+  $('#ctxUnderstandingMeta').innerHTML=[
+    '<span class="pill">长期理解 '+(u.has_long_term?'有':'无')+'</span>',
+    '<span class="pill">近期状态 '+(u.has_recent?'有':'无')+'</span>',
+    '<span class="pill">称呼表 '+(u.address_book||[]).length+'</span>',
+  ].join(' ');
+  const understandings=(lt?.understandings||[]).slice().sort((x,y)=>(y.confidence||0)-(x.confidence||0));
+  $('#ctxLongTermList').innerHTML=lt?(
+    (lt.narrative?'<div class="item"><b>画像叙述</b><div>'+esc(lt.narrative)+'</div></div>':'')+
+    understandings.map(x=>'<div class="item"><span class="pill">'+esc(x.category)+'</span><span class="pill">'+esc(x.subject||'')+'</span><span class="pill">conf '+((x.confidence||0).toFixed(2))+'</span><span class="pill">'+esc(x.status)+'</span><div>'+esc(x.statement)+'</div><div class="sub">支撑 '+((x.supportDates||[]).join('、')||'无')+'</div></div>').join('')||'<div class="item sub">暂无理解条目</div>'
+  )+('<div class="sub" style="margin-top:6px">v'+lt.version+' · 覆盖 '+esc(lt.covers_from||'')+'~'+esc(lt.covers_to||'')+' · 证据 '+lt.evidence_count+' 条 · 生成于 '+esc(localTime(lt.generated_at))+'</div>'):'<div class="item sub">暂无 L3 长期理解（需先跑 nightly profile-builder full）</div>';
+  $('#ctxRecentList').innerHTML=rc?(
+    '<div class="item"><b>近'+rc.window_days+'天状态</b><div>'+esc(rc.state_summary||'')+'</div><div class="sub">情绪走向：'+esc(rc.emotional_trend||'-')+'</div></div>'+
+    (rc.open_threads||[]).map(t=>'<div class="item"><span class="pill">'+esc(t.status)+'</span> '+esc(t.topic)+(t.lastMentionedAt?' <span class="sub">'+esc(t.lastMentionedAt)+'</span>':'')+'</div>').join('')+
+    (rc.notable_events||[]).map(e=>'<div class="item"><span class="pill">'+esc(e.date)+'</span> '+esc(e.summary)+'</div>').join('')+
+    '<div class="sub" style="margin-top:6px">v'+rc.version+' · 覆盖 '+esc(rc.covers_from||'')+'~'+esc(rc.covers_to||'')+' · 生成于 '+esc(localTime(rc.generated_at))+'</div>'
+  ):'<div class="item sub">暂无 L2 近期状态（需先跑 nightly profile-builder incremental）</div>';
+}
+async function refreshContext(){try{const ctx=await api('/conversation/playground/context?owner_id='+encodeURIComponent(owner())+'&date='+encodeURIComponent(date()));renderContext(ctx)}catch(e){$('#ctxAmbientText').textContent='加载失败：'+e.message}}
+$('#toggleContext').addEventListener('click',()=>{const b=$('#contextBody');b.style.display=b.style.display==='none'?'':'none'});
+async function refreshDay(){const results=await Promise.all([refreshTurns(),refreshDiagnostics(),refreshContext()]);return results[0]}
+async function refreshAll(){syncURL();setStatus('loading');await refreshDay();await loadArchives();updateDaySummary();setStatus('loaded','ok')}
+async function delTurn(id){if(!id||!confirm('删除这条对话？它派生的记忆事件、图片和紧随其后的回复会一并删除，且不可撤销。'))return;try{const r=await api('/conversation/turns/delete',{method:'POST',body:JSON.stringify({turn_id:id,owner_id:owner()})});const n=r.deleted&&r.deleted.counts?r.deleted.counts.conversation_turns:0;setStatus('已删除 '+n+' 条对话','ok');await refreshAll()}catch(e){alert('删除失败：'+e.message)}}
+async function delEvent(id){if(!id||!confirm('删除这条记忆事件？不可撤销。'))return;try{await api('/events/delete',{method:'POST',body:JSON.stringify({event_id:id})});setStatus('已删除事件','ok');await refreshAll()}catch(e){alert('删除失败：'+e.message)}}
+function shortId(id){return id?String(id).slice(0,8):''}
+function renderTags(values){return values.length?'<div class="tags">'+values.map(x=>'<span class="tag">'+esc(x)+'</span>').join('')+'</div>':''}
+function eventTags(e){const emo=parseJSON(e.emotion,{});const ents=parseJSON(e.entities,[]);const tags=parseJSON(e.tags,[]);return [emo?.primary,e.event_type,...(Array.isArray(ents)?ents.slice(0,4):[]),...(Array.isArray(tags)?tags.slice(0,4):[])].filter(Boolean)}
+function renderEvent(e,label){const del=e.id?'<button class="del-btn" title="删除这条记忆事件" onclick="delEvent(\''+e.id+'\')">✕</button>':'';return '<div style="margin-top:7px"><div class="sub">'+del+label+' · '+esc(e.event_date||e.event_time||'')+(e.created_at?' · '+esc(localTime(e.created_at)):'')+'</div><b>'+esc(e.summary||e.original_text||e.id)+'</b>'+renderTags(eventTags(e))+'</div>'}
+function renderDiagnostics(items){const useful=items.filter(d=>d.role==='user'||d.pipeline||d.current_events?.length||d.recalled_events?.length);$('#diagnosticList').innerHTML=useful.length?useful.map(d=>{const pipeline=d.pipeline;const current=d.current_events||[];const recalled=d.recalled_events||[];const pills=['intent '+(d.intent||'-'),d.source,d.pipeline_message_id?'msg '+shortId(d.pipeline_message_id):'',d.archive_id?'已归档':''].filter(Boolean).map(x=>'<span class="pill">'+esc(x)+'</span>').join('');const pipe=pipeline?'<div class="sub">pipeline '+esc(pipeline.stage)+' / '+esc(pipeline.status)+(pipeline.error?' · '+esc(pipeline.error):'')+'</div>':(d.pipeline_message_id?'<div class="sub">pipeline pending</div>':'');const events=current.map(e=>renderEvent(e,'extract')).join('');const recalls=recalled.map(e=>renderEvent(e,'recall')).join('');const empty=!pipeline&&!current.length&&!recalled.length?'<div class="sub">未关联抽取或召回事件</div>':'';return '<div class="item"><div>'+pills+'</div><div>'+esc((d.content||'').slice(0,120))+'</div>'+pipe+events+recalls+empty+'</div>'}).join(''):'<div class="item sub">暂无 intent/extract 结果</div>'}
+function normalizeArchiveRows(rows){return (rows||[]).map(x=>x.archive?Object.assign({},x.archive,{turns:x.turns,events_stored:x.events_stored,reason:x.reason,skipped:x.skipped}):x)}
+function renderArchives(rows,preview=false){const archives=normalizeArchiveRows(rows);$('#archiveList').innerHTML=archives.length?archives.map(a=>'<div class="item" data-event-count="'+archiveIds(a).length+'">'+(preview?'<span class="pill">预览</span>':'')+'<span class="pill">'+esc(a.status)+'</span><span class="pill">事件 '+archiveIds(a).length+'</span>'+(a.turns!==undefined?'<span class="pill">turns '+a.turns+'</span>':'')+'<div>'+esc(a.summary||a.error||a.reason||'')+'</div></div>').join(''):'<div class="item sub">暂无归档</div>'}
+async function loadArchives(){const data=await api('/archive/daily?owner_id='+encodeURIComponent(owner())+'&date='+encodeURIComponent(date()));dayState.archives=data.archives||[];renderArchives(dayState.archives);updateDaySummary();return data}
+async function runArchive(dryRun){if(!dryRun&&dayState.archives.length&&!confirm(ownerLabel()+' '+date()+' 已有归档，确认重新归档并覆盖吗？'))return;setStatus(dryRun?'previewing archive':'archiving');$('#archive').disabled=true;$('#archivePreview').disabled=true;try{const data=await api('/archive/daily/run',{method:'POST',body:JSON.stringify({owner_id:owner(),date:date(),force:true,dry_run:dryRun})});renderArchives(data.archives||[],dryRun);if(!dryRun){await refreshDay();await loadArchives()}setStatus(dryRun?'archive preview':'archived','ok')}catch(e){setStatus(e.message,'err')}finally{$('#archive').disabled=false;$('#archivePreview').disabled=false}}
+$('#send').addEventListener('click',async()=>{const text=$('#message').value.trim();if(!text)return;$('#message').value='';addMsg('user',text);setStatus('sending');$('#send').disabled=true;try{const data=await api('/conversation/message',{method:'POST',body:JSON.stringify({text,owner_id:owner(),date:date()})});addMsg('assistant',data.reply);renderRecall(data.events||data.result?.recalled||data.result?.context?.recalled||[]);await refreshDay();await loadArchives();setStatus(data.intent||'ok','ok');setTimeout(()=>refreshDay().catch(e=>setStatus(e.message,'err')),1500)}catch(e){setStatus(e.message,'err')}finally{$('#send').disabled=false}});
+$('#archivePreview').addEventListener('click',()=>runArchive(true));
+$('#archive').addEventListener('click',()=>runArchive(false));
+$('#refreshTurns').addEventListener('click',()=>refreshAll().catch(e=>setStatus(e.message,'err')));
+$('#loadArchives').addEventListener('click',()=>loadArchives().then(()=>setStatus('archives loaded','ok')).catch(e=>setStatus(e.message,'err')));
+$('#owner').addEventListener('change',()=>refreshAll().catch(e=>setStatus(e.message,'err')));
+$('#date').addEventListener('change',()=>refreshAll().catch(e=>setStatus(e.message,'err')));
+$('#prevDay').addEventListener('click',()=>{$('#date').value=addDays(date(),-1);refreshAll().catch(e=>setStatus(e.message,'err'))});
+$('#nextDay').addEventListener('click',()=>{$('#date').value=addDays(date(),1);refreshAll().catch(e=>setStatus(e.message,'err'))});
+$('#yesterday').addEventListener('click',()=>{$('#date').value=addDays(TODAY,-1);refreshAll().catch(e=>setStatus(e.message,'err'))});
+$('#today').addEventListener('click',()=>{$('#date').value=TODAY;refreshAll().catch(e=>setStatus(e.message,'err'))});
+initStateFromURL();updateDaySummary();window.XFEEL_AUTH.ensureLogin(()=>applyMe().then(refreshAll).catch(e=>setStatus(e.message,'err')));
+</script>
+</body>
+</html>

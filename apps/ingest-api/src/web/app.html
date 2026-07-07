@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#f6f1e9" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)" />
+<title>家的记忆</title>
+<style>
+:root{
+  --bg:#f6f1e9;--card:#fffdf8;--card2:#f9f4ea;--line:#e8dfd0;--line2:#ddd2bf;
+  --text:#40382f;--muted:#a0937f;--accent:#d97757;--accent-deep:#c05f3f;--accent-soft:#f7e9e1;
+  --green:#4f9e6b;--red:#c85454;--shadow:0 1px 2px rgba(90,70,40,.06),0 6px 20px -8px rgba(90,70,40,.12);
+  --bubble-user:linear-gradient(170deg,#dd7f5f,#c96444);--bubble-user-text:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16130f;--card:#211c16;--card2:#2a241c;--line:#3a332a;--line2:#4a4133;
+    --text:#ede6da;--muted:#9a8f7e;--accent:#e08a67;--accent-deep:#d97757;--accent-soft:#3a2a22;
+    --green:#6cb388;--red:#e07b7b;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -10px rgba(0,0,0,.5);
+    --bubble-user:linear-gradient(170deg,#c96a48,#b05636);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+#page{max-width:640px;width:100%;margin:0 auto;display:flex;flex-direction:column;min-height:100dvh}
+
+/* ===== 头部 ===== */
+header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:10px 12px calc(10px);padding-top:calc(10px + env(safe-area-inset-top))}
+.hrow{display:flex;align-items:center;gap:8px}
+.icon-btn{background:none;border:none;color:var(--muted);font-size:20px;line-height:1;padding:8px;border-radius:10px;cursor:pointer}
+.icon-btn:active{background:var(--card2)}
+#dateBtn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:none;border:none;color:var(--text);font:inherit;font-weight:700;font-size:16px;padding:8px;cursor:pointer;min-width:0}
+#dateBtn .sub{font-weight:400;font-size:12px;color:var(--muted)}
+#dateBtn .caret{color:var(--muted);font-size:11px}
+.seg{display:flex;gap:4px;justify-content:center;margin-top:6px;flex-wrap:wrap}
+.seg button{background:none;border:1px solid var(--line);border-radius:99px;color:var(--muted);font:inherit;font-size:13px;padding:3px 14px;cursor:pointer}
+.seg button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-deep);font-weight:600}
+.seg .seg-group{display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center;width:100%}
+.seg .seg-fam{font-size:11px;color:var(--muted);padding:0 4px;white-space:nowrap}
+.family-select{width:100%;max-width:420px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:7px 10px;font:inherit;font-size:13px}
+
+/* ===== 信息流 ===== */
+main{flex:1;overflow-y:auto;padding:16px 14px 8px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+main,.sheet,#input{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 48%,transparent) transparent}
+main::-webkit-scrollbar,.sheet::-webkit-scrollbar,#input::-webkit-scrollbar{width:8px;height:8px}
+main::-webkit-scrollbar-track,.sheet::-webkit-scrollbar-track,#input::-webkit-scrollbar-track{background:transparent}
+main::-webkit-scrollbar-thumb,.sheet::-webkit-scrollbar-thumb,#input::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 46%,transparent);border:2px solid transparent;border-radius:99px;background-clip:content-box}
+main::-webkit-scrollbar-thumb:hover,.sheet::-webkit-scrollbar-thumb:hover,#input::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 68%,transparent);border:2px solid transparent;background-clip:content-box}
+.day-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow)}
+.day-card .dc-title{font-size:12px;font-weight:700;color:var(--accent-deep);letter-spacing:.08em;margin-bottom:6px}
+.day-card .dc-body{font-size:14px;line-height:1.7;white-space:pre-wrap}
+.day-card .dc-meta{margin-top:8px;font-size:12px;color:var(--muted)}
+.bubble-row{display:flex;flex-direction:column;max-width:86%;animation:rise .22s ease}
+.bubble-row.user{align-self:flex-end;align-items:flex-end}
+.bubble-row.assistant{align-self:flex-start;align-items:flex-start}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.bubble{padding:10px 14px;border-radius:18px;white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)}
+.user .bubble{background:var(--bubble-user);color:var(--bubble-user-text);border-bottom-right-radius:6px}
+.assistant .bubble{background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
+.bubble-row.failed .bubble{outline:2px solid var(--red);outline-offset:-1px;opacity:.75}
+.b-meta{font-size:11px;color:var(--muted);margin:4px 6px 0}
+.b-img{max-width:min(240px,70vw);border-radius:14px;display:block;margin-bottom:4px;cursor:zoom-in;box-shadow:var(--shadow)}
+.b-transcript{max-width:min(240px,70vw);font-size:12px;color:var(--muted);line-height:1.5;padding:2px 4px}
+.b-transcript::before{content:"📷 ";opacity:.7}
+.typing{display:inline-flex;gap:5px;padding:14px 16px}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+/* 记忆回执 & 相关记忆 */
+.receipts{display:flex;flex-direction:column;gap:4px;margin-top:5px;align-items:inherit}
+.receipt{display:inline-flex;align-items:center;gap:6px;max-width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:4px 10px;font-size:12px;color:var(--muted)}
+.receipt .ok{color:var(--green);font-weight:700}
+.receipt .r-sum{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.receipt.mood-pos{border-left:3px solid var(--mood-pos)}
+.receipt.mood-neg{border-left:3px solid var(--mood-neg)}
+.receipt.mood-neu{border-left:3px solid var(--mood-neu)}
+.receipt .r-emo{flex:none;font-size:10.5px;padding:0 6px;border-radius:99px;border:1px solid var(--line)}
+.receipt .r-emo.pos{color:var(--mood-pos);border-color:var(--mood-pos)}
+.receipt .r-emo.neg{color:var(--mood-neg);border-color:var(--mood-neg)}
+.receipt .r-emo.neu{color:var(--mood-neu);border-color:var(--mood-neu)}
+.receipt .r-x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px;opacity:.6}
+.receipt .r-x:active{color:var(--red);opacity:1}
+.receipt .r-confirm{background:var(--red);border:none;color:#fff;border-radius:8px;font-size:11px;padding:2px 8px;cursor:pointer}
+.recall-cards{display:flex;flex-direction:column;gap:6px;margin-top:6px;width:100%}
+.recall-card{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px;cursor:pointer}
+.recall-card:active{border-color:var(--accent)}
+.recall-card .rc-date{font-size:11px;color:var(--accent-deep);font-weight:600}
+.rc-label{font-size:11px;color:var(--muted);margin:2px 6px 0}
+
+/* 历史记忆卡片（无对话的日子） */
+.mem-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 15px;box-shadow:var(--shadow);cursor:pointer}
+.mem-card .m-time{font-size:11px;color:var(--muted)}
+.mem-card .m-sum{font-size:14.5px;margin:3px 0 2px;line-height:1.55}
+.mem-card .m-orig{display:none;font-size:13px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);white-space:pre-wrap}
+.mem-card.open .m-orig{display:block}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.chip{border:1px solid var(--line);border-radius:99px;padding:1px 9px;color:var(--muted);font-size:11px;background:var(--card2)}
+.chip.emo{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-soft)}
+/* 情绪 chip 按正负性上色；强度≥0.7 加粗 */
+.chip.emo.pos{border-color:var(--mood-pos);color:var(--mood-pos);background:color-mix(in srgb,var(--mood-pos) 12%,var(--card))}
+.chip.emo.neg{border-color:var(--mood-neg);color:var(--mood-neg);background:color-mix(in srgb,var(--mood-neg) 12%,var(--card))}
+.chip.emo.neu{border-color:var(--mood-neu);color:var(--mood-neu);background:color-mix(in srgb,var(--mood-neu) 12%,var(--card))}
+.chip.emo.strong{font-weight:700}
+/* 记忆卡按情绪色描左边 */
+.mem-card.mood-pos{border-left:3px solid var(--mood-pos)}
+.mem-card.mood-neg{border-left:3px solid var(--mood-neg)}
+.mem-card.mood-neu{border-left:3px solid var(--mood-neu)}
+/* 当天情绪分布条（信息流顶部，客户端聚合） */
+.day-mood{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 14px;font-size:12px;color:var(--muted)}
+.day-mood .dm-label{flex:none;font-weight:600}
+.day-mood .dm-bar{flex:1;display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--card2)}
+.day-mood .dm-bar i{display:block;height:100%}
+.day-mood .dm-bar i.pos{background:var(--mood-pos)}
+.day-mood .dm-bar i.neg{background:var(--mood-neg)}
+.day-mood .dm-bar i.neu{background:var(--mood-neu)}
+.day-mood .dm-top{flex:none;color:var(--text)}
+.section-label{font-size:12px;color:var(--muted);text-align:center;margin:2px 0}
+
+/* 跟进关怀卡片（回声 / 担忧回访 / 安排跟进） */
+.care-card{display:flex;align-items:flex-start;gap:10px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow)}
+.care-card .c-icon{font-size:18px;line-height:1.4}
+.care-card .c-body{flex:1;font-size:14px;line-height:1.6}
+.care-card .c-x{background:none;border:none;color:var(--accent-deep);opacity:.6;font-size:14px;cursor:pointer;padding:2px 4px}
+.care-card .c-x:active{opacity:1}
+
+/* 里程碑时间线 */
+.ms-line{position:relative;padding-left:18px;margin:4px 0 0}
+.ms-line::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--line2);border-radius:2px}
+.ms-item{position:relative;padding:0 0 16px}
+.ms-item::before{content:"";position:absolute;left:-17px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ms-item .ms-date{font-size:11px;color:var(--accent-deep);font-weight:600}
+.ms-item .ms-sum{font-size:14px;line-height:1.55;margin-top:2px}
+.ms-year{font-size:13px;font-weight:700;color:var(--muted);margin:6px 0 10px;padding-left:0}
+.ms-empty{text-align:center;color:var(--muted);padding:28px 0;font-size:13px;line-height:2}
+
+/* 情绪回顾面板 */
+.mood-narrative{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.7;margin-bottom:14px}
+.mood-ratio{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--card2)}
+.mood-ratio i{display:block;height:100%}
+.mood-ratio .pos,.mw-bar .pos{background:var(--mood-pos)}
+.mood-ratio .neg,.mw-bar .neg{background:var(--mood-neg)}
+.mood-ratio .neu,.mw-bar .neu{background:var(--mood-neu)}
+.mood-ratio-legend{display:flex;gap:14px;justify-content:center;font-size:11px;color:var(--muted);margin:8px 0 4px}
+.mood-ratio-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:baseline}
+.mood-ratio-legend .dot-pos{background:var(--mood-pos)}
+.mood-ratio-legend .dot-neg{background:var(--mood-neg)}
+.mood-ratio-legend .dot-neu{background:var(--mood-neu)}
+.mood-sec{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;margin:16px 0 8px}
+.mood-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.mood-row .mr-name{width:52px;font-size:13px;text-align:right;flex:none}
+.mood-row .mr-bar{flex:1;height:8px;border-radius:99px;background:var(--card2);overflow:hidden}
+.mood-row .mr-bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.mood-row .mr-bar i.pos{background:var(--mood-pos)}
+.mood-row .mr-bar i.neg{background:var(--mood-neg)}
+.mood-row .mr-bar i.neu{background:var(--mood-neu)}
+.mood-row .mr-count{width:28px;font-size:12px;color:var(--muted);flex:none}
+.mood-weeks{display:flex;gap:10px;align-items:flex-end;justify-content:center;padding:4px 0}
+.mw-col{display:flex;flex-direction:column;align-items:center;gap:4px}
+.mw-bar{width:22px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:6px;background:var(--card2);overflow:hidden}
+.mw-bar i{display:block;width:100%}
+.mw-label{font-size:10px;color:var(--muted)}
+.empty{text-align:center;color:var(--muted);margin:auto;padding:40px 24px;font-size:14px;line-height:2}
+.empty .e-big{font-size:40px;line-height:1;margin-bottom:12px}
+
+/* ===== 输入条 ===== */
+footer{position:sticky;bottom:0;z-index:20;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+.composer{display:flex;align-items:flex-start;gap:8px}
+#input{flex:1;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:20px;padding:10px 15px;font:inherit;resize:none;min-height:calc(1.45em + 20px);max-height:132px;line-height:1.45;overflow-y:auto;transition:min-height .16s ease,border-color .15s}
+#input:focus,#input.expanded{min-height:calc(1.45em * 3 + 20px)}
+#input:focus{outline:none;border-color:var(--accent)}
+#sendBtn{width:40px;height:40px;flex:none;border:none;border-radius:50%;background:var(--bubble-user);color:#fff;font-size:18px;cursor:pointer;box-shadow:var(--shadow);transition:transform .1s,opacity .15s}
+#sendBtn:disabled{opacity:.4}
+#sendBtn:active{transform:scale(.92)}
+#imgBtn{width:40px;height:40px;flex:none;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--muted);font-size:18px;cursor:pointer}
+.img-preview{display:flex;align-items:center;gap:10px;margin-bottom:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px}
+.img-preview img{width:52px;height:52px;object-fit:cover;border-radius:10px}
+.img-preview .ip-hint{flex:1;font-size:12px;color:var(--muted)}
+.img-preview button{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:6px}
+.composer.readonly{opacity:.55;pointer-events:none}
+.view-hint{text-align:center;font-size:12px;color:var(--muted);margin-bottom:8px}
+
+/* ===== 底部弹层（日历 / 菜单） ===== */
+.sheet-mask{position:fixed;inset:0;z-index:40;background:rgba(20,14,8,.45);display:none;align-items:flex-end;justify-content:center}
+.sheet-mask.show{display:flex}
+.sheet{width:100%;max-width:640px;background:var(--bg);border-radius:20px 20px 0 0;border:1px solid var(--line);border-bottom:none;padding:14px 18px calc(20px + env(safe-area-inset-bottom));animation:up .22s ease;max-height:78dvh;overflow-y:auto}
+@keyframes up{from{transform:translateY(30%);opacity:.6}to{transform:none;opacity:1}}
+.sheet .grab{width:36px;height:4px;border-radius:99px;background:var(--line2);margin:0 auto 14px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-head b{font-size:16px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.cal-grid .wd{font-size:11px;color:var(--muted);padding:4px 0}
+.cal-day{position:relative;border:none;background:none;color:var(--text);font:inherit;font-size:14px;padding:9px 0 13px;border-radius:12px;cursor:pointer}
+.cal-day:disabled{color:var(--line2);cursor:default}
+.cal-day .dot{position:absolute;left:50%;transform:translateX(-50%);bottom:5px;width:4px;height:4px;border-radius:50%;background:var(--accent)}
+.cal-day .dot.big{width:6px;height:6px}
+/* 情绪日历：亮点按当天主导情绪上色（正=绿 / 负=蓝 / 中性=灰） */
+:root{--mood-pos:#4f9e6b;--mood-neg:#6b8fd4;--mood-neu:#a8a094}
+@media (prefers-color-scheme: dark){:root{--mood-pos:#6cb388;--mood-neg:#8aa5e8;--mood-neu:#8d8375}}
+.cal-day .dot.pos{background:var(--mood-pos)}
+.cal-day .dot.neg{background:var(--mood-neg)}
+.cal-day .dot.neu{background:var(--mood-neu)}
+/* 当天情绪分布迷你条：格子底部三段堆叠，比单点直观 */
+.cal-day .mini-mood{position:absolute;left:50%;transform:translateX(-50%);bottom:4px;display:flex;width:62%;height:3.5px;border-radius:99px;overflow:hidden;background:var(--card2)}
+.cal-day .mini-mood i{display:block;height:100%}
+.cal-day .mini-mood i.pos{background:var(--mood-pos)}
+.cal-day .mini-mood i.neg{background:var(--mood-neg)}
+.cal-day .mini-mood i.neu{background:var(--mood-neu)}
+.cal-day.sel .mini-mood{background:rgba(255,255,255,.35)}
+.cal-day.sel{background:var(--accent);color:#fff;font-weight:700}
+.cal-day.sel .dot{background:#fff}
+.cal-day.today:not(.sel){box-shadow:inset 0 0 0 1.5px var(--accent)}
+.menu-item{display:flex;align-items:center;gap:10px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;font:inherit;color:var(--text);cursor:pointer;margin-bottom:8px;text-decoration:none}
+.menu-item.danger{color:var(--red)}
+.menu-id{text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px}
+.label-presets{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
+.label-presets button{background:var(--card);border:1px solid var(--line);border-radius:99px;color:var(--text);font:inherit;font-size:14px;padding:7px 18px;cursor:pointer}
+.label-presets button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-deep);font-weight:600}
+.label-input{display:block;width:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px 14px;font:inherit;margin-bottom:14px}
+.label-input:focus{outline:none;border-color:var(--accent)}
+.profile-field{margin-bottom:14px}
+.profile-field label{display:block;font-size:12px;color:var(--muted);margin:0 2px 6px}
+.profile-field .label-input{margin-bottom:0}
+.label-actions{display:flex;gap:10px}
+.label-actions button{flex:1;border-radius:12px;padding:12px 0;font:inherit;font-weight:600;cursor:pointer}
+.label-skip{background:none;border:1px solid var(--line);color:var(--muted)}
+.label-save{background:var(--bubble-user);border:none;color:#fff}
+.label-save:disabled{opacity:.5}
+
+/* toast / lightbox */
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom));z-index:60;background:var(--text);color:var(--bg);padding:9px 18px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;max-width:86vw;text-align:center}
+#toast.show{opacity:.95}
+#lightbox{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;cursor:zoom-out}
+#lightbox.show{display:flex}
+#lightbox img{max-width:96vw;max-height:92vh;border-radius:8px}
+</style>
+</head>
+<body>
+<div id="page">
+  <header>
+    <div class="hrow">
+      <button class="icon-btn" id="prevDay" aria-label="前一天">‹</button>
+      <button id="dateBtn"><span id="dateTitle">…</span><span class="caret">▾</span></button>
+      <button class="icon-btn" id="nextDay" aria-label="后一天">›</button>
+      <button class="icon-btn" id="menuBtn" aria-label="菜单">☰</button>
+    </div>
+    <div class="seg" id="ownerSeg" hidden></div>
+  </header>
+
+  <main id="feed"></main>
+
+  <footer>
+    <div class="view-hint" id="viewHint" hidden></div>
+    <div class="img-preview" id="imgPreview" hidden>
+      <img id="imgPreviewThumb" alt="" />
+      <span class="ip-hint">配句话再发，或直接发送</span>
+      <button id="imgCancel" aria-label="取消图片">✕</button>
+    </div>
+    <div class="composer">
+      <button id="imgBtn" aria-label="发图片">📷</button>
+      <input id="imgInput" type="file" accept="image/*" hidden />
+      <textarea id="input" rows="1" placeholder="记点什么，或问问过去…"></textarea>
+      <button id="sendBtn" aria-label="发送">↑</button>
+    </div>
+  </footer>
+</div>
+
+<div class="sheet-mask" id="calMask"><div class="sheet">
+  <div class="grab"></div>
+  <div class="cal-head"><button class="icon-btn" id="calPrev">‹</button><b id="calTitle"></b><button class="icon-btn" id="calNext">›</button></div>
+  <div class="cal-grid" id="calGrid"></div>
+</div></div>
+
+<div class="sheet-mask" id="menuMask"><div class="sheet">
+  <div class="grab"></div>
+  <div class="menu-id" id="menuWho"></div>
+  <div id="menuAdmin" hidden>
+    <a class="menu-item" href="/conversation/playground">🛠 管理调试台</a>
+    <a class="menu-item" href="/dashboard">📊 全局仪表盘</a>
+  </div>
+  <button class="menu-item" id="setLabelBtn" hidden>✏️ 家庭资料</button>
+  <button class="menu-item" id="milestoneBtn">🌱 成长里程碑</button>
+  <button class="menu-item" id="moodBtn">🌤 情绪回顾</button>
+  <button class="menu-item" id="gotoToday">📍 回到今天</button>
+  <button class="menu-item danger" id="logoutBtn">退出登录</button>
+</div></div>
+
+<div class="sheet-mask" id="msMask"><div class="sheet">
+  <div class="grab"></div>
+  <div style="text-align:center;margin-bottom:10px;font-size:17px;font-weight:700">🌱 成长里程碑</div>
+  <div id="msBody"></div>
+</div></div>
+
+<div class="sheet-mask" id="moodMask"><div class="sheet">
+  <div class="grab"></div>
+  <div style="text-align:center;margin-bottom:10px;font-size:17px;font-weight:700">🌤 最近30天的情绪</div>
+  <div id="moodBody"></div>
+</div></div>
+
+<div class="sheet-mask" id="labelMask"><div class="sheet">
+  <div class="grab"></div>
+  <div style="text-align:center;margin-bottom:4px;font-size:17px;font-weight:700">家庭资料</div>
+  <div class="menu-id">这些信息只用于家庭记忆里的显示和指代</div>
+  <div class="profile-field">
+    <label for="familyNameInput">家庭名称</label>
+    <input id="familyNameInput" class="label-input" maxlength="20" placeholder="例如：王家、301 室、爸妈家" />
+  </div>
+  <div class="profile-field">
+    <label>我的称呼</label>
+  </div>
+  <div class="label-presets" id="labelPresets"></div>
+  <input id="labelInput" class="label-input" maxlength="8" placeholder="或者自己填一个，如：奶奶" />
+  <div class="label-actions">
+    <button class="label-skip" id="labelSkip">暂不设置</button>
+    <button class="label-save" id="labelSave">就这么叫</button>
+  </div>
+</div></div>
+
+<div id="toast"></div>
+<div id="lightbox"><img alt="" /></div>
+
+<script src="/web/auth.js"></script>
+<script src="/web/app.js"></script>
+</body>
+</html>

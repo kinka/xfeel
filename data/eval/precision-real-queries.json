@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "owners": {
+    "dad": "demo-dad-owner",
+    "mom": "demo-mom-owner"
+  },
+  "notes": [
+    "This fixture has been sanitized for open-source use.",
+    "Owner ids, child aliases, and query wording are synthetic examples derived from retrieval regression shapes.",
+    "Precision labels are heuristic safety regressions, not human truth labels.",
+    "The fixture intentionally stores only queries and expected constraints; it does not contain diary text."
+  ],
+  "cases": [
+    {
+      "id": "generic-baby-recent",
+      "category": "generic-broad",
+      "query": "宝宝最近怎么样",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "generic": true,
+        "owner_id": "demo-dad-owner"
+      }
+    },
+    {
+      "id": "generic-mom-recent",
+      "category": "generic-broad",
+      "query": "妈妈最近怎么样",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "generic": true,
+        "owner_id": "demo-mom-owner"
+      }
+    },
+    {
+      "id": "generic-today-dad",
+      "category": "generic-broad",
+      "query": "今天发生了什么",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "generic": true,
+        "owner_id": "demo-dad-owner"
+      }
+    },
+    {
+      "id": "generic-sleep-mom",
+      "category": "generic-broad",
+      "query": "最近睡得怎么样",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "generic": true,
+        "owner_id": "demo-mom-owner",
+        "types_any": ["sleep"]
+      }
+    },
+    {
+      "id": "no-answer-nonexistent-illness",
+      "category": "negative-no-answer",
+      "query": "宝宝得过蓝莓量子热吗",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "no_answer": true,
+        "owner_id": "demo-dad-owner",
+        "terms_any": ["蓝莓量子热"],
+        "forbidden_terms_any": ["蓝莓量子热"]
+      }
+    },
+    {
+      "id": "no-answer-nonexistent-place",
+      "category": "negative-no-answer",
+      "query": "妈妈有没有带娃去火星托育中心",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "no_answer": true,
+        "owner_id": "demo-mom-owner",
+        "terms_all": ["火星托育中心"],
+        "forbidden_terms_any": ["火星托育中心"]
+      }
+    },
+    {
+      "id": "no-answer-nonexistent-event",
+      "category": "negative-no-answer",
+      "query": "有没有参加过月球游泳课",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "no_answer": true,
+        "owner_id": "demo-dad-owner",
+        "terms_all": ["月球游泳课"],
+        "forbidden_terms_any": ["月球游泳课"]
+      }
+    },
+    {
+      "id": "no-answer-wrong-owner-mom-dizzy",
+      "category": "negative-wrong-owner",
+      "query": "爸爸这边有没有妈妈那次头晕眩晕地球在转",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "no_answer": true,
+        "owner_id": "demo-dad-owner",
+        "terms_all": ["头晕", "地球在转"],
+        "forbidden_owner_ids": ["demo-mom-owner"]
+      }
+    },
+    {
+      "id": "no-answer-impossible-combo",
+      "category": "negative-impossible",
+      "query": "爸爸在日本台风那天给宝宝打火星疫苗",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "no_answer": true,
+        "owner_id": "demo-dad-owner",
+        "terms_all": ["日本", "台风", "火星疫苗"],
+        "forbidden_terms_any": ["火星疫苗"]
+      }
+    },
+    {
+      "id": "contextual-current-event-exclusion",
+      "category": "contextual-safety",
+      "query": "刚刚写入的合成当前事件：星星夜醒三次",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "no_answer": true,
+        "owner_id": "demo-mom-owner",
+        "terms_all": ["合成当前事件", "夜醒三次"],
+        "forbidden_terms_any": ["合成当前事件"]
+      }
+    },
+    {
+      "id": "parent-only-mom",
+      "category": "expansion-risk-parent-only",
+      "query": "妈妈",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "generic": true,
+        "owner_id": "demo-dad-owner",
+        "parent_only_terms": ["妈妈"]
+      }
+    },
+    {
+      "id": "parent-only-dad",
+      "category": "expansion-risk-parent-only",
+      "query": "爸爸",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "generic": true,
+        "owner_id": "demo-mom-owner",
+        "parent_only_terms": ["爸爸"]
+      }
+    },
+    {
+      "id": "expansion-risk-work-emotion",
+      "category": "expansion-risk-work-emotion",
+      "query": "最近工作压力怎么样",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "types_any": ["work", "emotion"],
+        "tags_any": ["工作压力", "育儿压力"],
+        "terms_any": ["工作", "压力", "客户", "代理"]
+      }
+    },
+    {
+      "id": "expansion-risk-broad-emotion",
+      "category": "expansion-risk-work-emotion",
+      "query": "最近有没有焦虑崩溃压力很大的记录",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "types_any": ["emotion", "sleep", "health"],
+        "tags_any": ["育儿压力", "工作压力"],
+        "terms_any": ["焦虑", "崩溃", "压力", "担心"]
+      }
+    },
+    {
+      "id": "expansion-risk-feeding-aliases",
+      "category": "expansion-risk-feeding-alias",
+      "query": "最近喝奶吃奶吃饭辅食怎么样",
+      "owner_id": "demo-mom-owner",
+      "expected": {
+        "owner_id": "demo-mom-owner",
+        "types_any": ["feeding"],
+        "tags_any": ["辅食", "母乳", "奶粉", "自主进食"],
+        "terms_any": ["喝奶", "吃奶", "吃饭", "辅食", "奶粉", "母乳"]
+      }
+    },
+    {
+      "id": "expansion-risk-health-aliases",
+      "category": "expansion-risk-health-alias",
+      "query": "宝宝最近有没有打针发烧咳嗽感冒",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "types_any": ["health"],
+        "tags_any": ["疫苗", "发烧", "咳嗽", "感冒"],
+        "terms_any": ["打针", "疫苗", "发烧", "咳嗽", "感冒"]
+      }
+    },
+    {
+      "id": "expansion-risk-sleep-aliases",
+      "category": "expansion-risk-sleep-alias",
+      "query": "最近夜醒睡不好哄睡怎么样",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "owner_id": "demo-dad-owner",
+        "types_any": ["sleep"],
+        "tags_any": ["夜醒", "自主入睡", "睡眠不足"],
+        "terms_any": ["夜醒", "睡不好", "哄睡", "睡眠"]
+      }
+    },
+    {
+      "id": "generic-two-babies-recent",
+      "category": "generic-broad",
+      "query": "两个宝宝最近怎么样",
+      "owner_id": "demo-dad-owner",
+      "expected": {
+        "generic": true,
+        "owner_id": "demo-dad-owner"
+      }
+    }
+  ]
+}

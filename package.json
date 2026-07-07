@@ -1,0 +1,31 @@
+{
+  "name": "xfeel",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "db:init": "bun run packages/db/src/init.ts",
+    "db:rebuild-fts": "bun run scripts/rebuild-fts.ts",
+    "import": "bun run scripts/import-diaries.ts",
+    "api": "bun run apps/ingest-api/src/server.ts",
+    "import:quick": "bun run scripts/import-diaries.ts --skip-llm",
+    "archive:daily": "bun run scripts/daily-archive.ts",
+    "inspect:today": "bun run scripts/inspect-today.ts",
+    "profile:build": "bun run scripts/build-profile.ts",
+    "db:backup:icloud": "bun run scripts/backup-db.ts",
+    "wechat:menu": "bun run scripts/publish-wechat-menu.ts",
+    "nightly": "bun run scripts/nightly-worker.ts --hour=0 --minute=15",
+    "nightly:once": "bun run scripts/nightly-worker.ts --once",
+    "test:ui": "bash scripts/test-conversation-ui.sh",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "zod": "^3.23.0",
+    "fastify": "^5.0.0",
+    "@fastify/cors": "^11.0.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.1.0",
+    "typescript": "^5.5.0"
+  }
+}
