@@ -29,11 +29,27 @@ export interface DailyArchiveResult {
   events_stored: number;
   skipped: boolean;
   reason?: string;
+  integrity?: DayIntegrityReport;
 }
 
 export interface RunDailyArchiveResult {
   date: string;
   archives: DailyArchiveResult[];
+}
+
+export interface DayIntegrityReport {
+  inspected_turns: number;
+  metadata_fixed: number;
+  reprocessed: number;
+  unresolved: number;
+  issues: Array<{
+    turn_id: string;
+    message_id: string;
+    issue: "missing_events" | "invalid_event_ids" | "pipeline_error" | "pipeline_degraded" | "missing_pipeline_status" | "metadata_out_of_sync";
+    action: "metadata_fixed" | "reprocessed" | "unresolved" | "dry_run";
+    event_ids: string[];
+    error?: string;
+  }>;
 }
 
 export async function runDailyArchive(input: {
@@ -78,6 +94,13 @@ export async function archiveDay(input: {
     };
   }
 
+  const integrity = await repairDayIntegrity({
+    owner_id: ownerId,
+    date,
+    dry_run: input.dry_run,
+    include_archived: Boolean(input.force),
+  });
+
   const turns = getConversationTurns({
     owner_id: ownerId,
     date,
@@ -96,7 +119,7 @@ export async function archiveDay(input: {
       status: "skipped",
       error: "no turns to archive",
     });
-    return { archive: skipped, turns: 0, events_stored: 0, skipped: true, reason: "no turns to archive" };
+    return { archive: skipped, turns: 0, events_stored: 0, skipped: true, reason: "no turns to archive", integrity };
   }
 
   const summary = await summarizeTurns(date, ownerId, turns);
@@ -114,6 +137,7 @@ export async function archiveDay(input: {
       turns: turns.length,
       events_stored: 0,
       skipped: false,
+      integrity,
     };
   }
 
@@ -186,7 +210,97 @@ export async function archiveDay(input: {
     turns: turns.length,
     events_stored: eventIds.length,
     skipped: false,
+    integrity,
   };
+}
+
+export async function repairDayIntegrity(input: {
+  owner_id?: string;
+  user_id?: string;
+  date?: string;
+  dry_run?: boolean;
+  include_archived?: boolean;
+}): Promise<DayIntegrityReport> {
+  const ownerId = normalizeOwnerId(input.owner_id ?? input.user_id);
+  const date = normalizeDate(input.date);
+  if (!ownerId) throw new Error("owner_id is required");
+
+  const turns = loadRepairableLogTurns(ownerId, date, Boolean(input.include_archived));
+  const report: DayIntegrityReport = {
+    inspected_turns: turns.length,
+    metadata_fixed: 0,
+    reprocessed: 0,
+    unresolved: 0,
+    issues: [],
+  };
+
+  for (const turn of turns) {
+    const metadata = parseMetadata(turn.metadata);
+    const messageId = stringValue(metadata.pipeline_message_id) || turn.id;
+    const events = loadEventsForMessage(messageId, ownerId);
+    const eventIds = events.map(event => event.id);
+    const metadataEventIds = stringArray(metadata.current_event_ids);
+    const status = loadPipelineStatus(messageId);
+
+    let issue: DayIntegrityReport["issues"][number]["issue"] | null = null;
+    if (events.length === 0) issue = "missing_events";
+    else if (status?.status === "error" || status?.stage === "error") issue = "pipeline_error";
+    else if (status?.status === "degraded") issue = "pipeline_degraded";
+    else if (!status) issue = "missing_pipeline_status";
+    else if (metadataEventIds.some(id => !eventIds.includes(id))) issue = "invalid_event_ids";
+    else if (!sameStringSet(metadataEventIds, eventIds)) issue = "metadata_out_of_sync";
+    if (!issue) continue;
+
+    if (input.dry_run) {
+      report.issues.push({ turn_id: turn.id, message_id: messageId, issue, action: "dry_run", event_ids: eventIds });
+      continue;
+    }
+
+    if (issue === "metadata_out_of_sync" || issue === "invalid_event_ids" || issue === "missing_pipeline_status") {
+      updateTurnEventMetadata(turn.id, metadata, messageId, eventIds);
+      report.metadata_fixed++;
+      report.issues.push({ turn_id: turn.id, message_id: messageId, issue, action: "metadata_fixed", event_ids: eventIds });
+      continue;
+    }
+
+    try {
+      const pipeline = await processMessage(turn.content, {
+        ownerId,
+        userId: ownerId,
+        messageId,
+        force: true,
+        eventDate: date,
+        turnDate: date,
+        createdAt: turn.created_at,
+        combinedExtract: true,
+        embedNewEvents: false,
+      });
+      const repairedIds = pipeline.events.map(event => event.id).filter((id): id is string => Boolean(id));
+      updateTurnEventMetadata(turn.id, metadata, pipeline.message_id, repairedIds);
+      report.reprocessed++;
+      if (pipeline.degraded || repairedIds.length === 0) report.unresolved++;
+      report.issues.push({
+        turn_id: turn.id,
+        message_id: pipeline.message_id,
+        issue,
+        action: pipeline.degraded || repairedIds.length === 0 ? "unresolved" : "reprocessed",
+        event_ids: repairedIds,
+        error: pipeline.degraded ? "pipeline remained degraded after repair" : undefined,
+      });
+    } catch (error) {
+      report.unresolved++;
+      report.issues.push({
+        turn_id: turn.id,
+        message_id: messageId,
+        issue,
+        action: "unresolved",
+        event_ids: eventIds,
+        error: safeErrorMessage(error),
+      });
+    }
+  }
+
+  return report;
 }
 
 export function getDailyArchives(query: {
@@ -236,6 +350,89 @@ function findArchive(ownerId: string, date: string): DailyArchive | null {
     SELECT * FROM daily_archives WHERE owner_id = ? AND archive_date = ?
   `).get(ownerId, date) as Record<string, unknown> | undefined;
   return row ? rowToArchive(row) : null;
+}
+
+function loadRepairableLogTurns(ownerId: string, date: string, includeArchived: boolean): ConversationTurn[] {
+  const db = getDB();
+  const archiveFilter = includeArchived ? "" : "AND archive_id IS NULL";
+  const rows = db.prepare(`
+    SELECT * FROM conversation_turns
+    WHERE owner_id = ?
+      AND turn_date = ?
+      AND role = 'user'
+      ${archiveFilter}
+      AND (
+        source = 'log'
+        OR json_extract(metadata, '$.mode') IN ('log_with_contextual_reply', 'product_correction')
+        OR json_extract(metadata, '$.pipeline_message_id') IS NOT NULL
+        OR json_extract(metadata, '$.current_event_ids') IS NOT NULL
+      )
+    ORDER BY created_at ASC
+  `).all(ownerId, date) as Array<Record<string, unknown>>;
+  return rows.map(rowToTurn);
+}
+
+function loadEventsForMessage(messageId: string, ownerId: string): Array<{ id: string }> {
+  const db = getDB();
+  return db.prepare(`
+    SELECT id FROM memory_events
+    WHERE raw_message_id = ?
+      AND COALESCE(user_id, '') = COALESCE(?, '')
+      AND source_layer = 'extracted'
+    ORDER BY COALESCE(event_index, 0) ASC, id ASC
+  `).all(messageId, ownerId) as Array<{ id: string }>;
+}
+
+function loadPipelineStatus(messageId: string): { stage: string; status: string } | null {
+  const db = getDB();
+  const row = db.prepare("SELECT stage, status FROM pipeline_status WHERE message_id = ?")
+    .get(messageId) as { stage: string; status: string } | undefined;
+  return row || null;
+}
+
+function updateTurnEventMetadata(
+  turnId: string,
+  metadata: Record<string, unknown>,
+  messageId: string,
+  eventIds: string[],
+): void {
+  const db = getDB();
+  const next = {
+    ...metadata,
+    mode: metadata.mode === "product_correction" ? "product_correction" : "log_with_contextual_reply",
+    pipeline_message_id: messageId,
+    current_event_ids: eventIds,
+    integrity_checked_at: new Date().toISOString(),
+  };
+  db.prepare("UPDATE conversation_turns SET source = 'log', metadata = ? WHERE id = ?")
+    .run(JSON.stringify(next), turnId);
+}
+
+function parseMetadata(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  const a = new Set(left);
+  const b = new Set(right);
+  if (a.size !== b.size) return false;
+  for (const item of a) if (!b.has(item)) return false;
+  return true;
 }
 
 async function summarizeTurns(date: string, ownerId: string, turns: ConversationTurn[]): Promise<string> {
@@ -330,6 +527,20 @@ function rowToArchive(row: Record<string, unknown>): DailyArchive {
     error: row.error as string | undefined,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
+  };
+}
+
+function rowToTurn(row: Record<string, unknown>): ConversationTurn {
+  return {
+    id: row.id as string,
+    owner_id: row.owner_id as string | undefined,
+    role: row.role as ConversationTurn["role"],
+    content: row.content as string,
+    turn_date: row.turn_date as string,
+    source: row.source as string,
+    metadata: parseMetadata(row.metadata),
+    archive_id: row.archive_id as string | undefined,
+    created_at: row.created_at as string,
   };
 }
 

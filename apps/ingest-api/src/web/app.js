@@ -157,7 +157,7 @@
       var vcls = emo && emo.valence && MOOD_CLASS[emo.valence] ? " mood-" + MOOD_CLASS[emo.valence].trim() : "";
       var emoTag = emo && emo.primary ? '<span class="r-emo' + (vcls ? " " + vcls.trim().replace("mood-", "") : "") + '">' + esc(emo.primary) + "</span>" : "";
       return '<span class="receipt' + vcls + '" data-event-id="' + esc(e.id || "") + '">' +
-        '<span class="ok">✓ 已记</span><span class="r-sum">' + esc(e.summary || "") + "</span>" + emoTag +
+        '<span class="ok" aria-label="已保存">✓</span><span class="r-sum">' + esc(e.summary || "") + "</span>" + emoTag +
         (e.id ? '<button class="r-x" title="删除这条记忆" aria-label="删除">✕</button>' : "") +
         "</span>";
     }).join("") + "</div>";

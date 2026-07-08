@@ -19,7 +19,7 @@ mock.module("../../ai-client/src/llm", () => ({
 const { getDB, closeDB } = await import("../../db/src/database");
 const { initSchema } = await import("../../db/src/schema");
 const { recordConversationTurn, getConversationTurns } = await import("../../conversation/src/conversation");
-const { runDailyArchive, getDailyArchives } = await import("./daily");
+const { runDailyArchive, getDailyArchives, repairDayIntegrity } = await import("./daily");
 const { recall } = await import("../../retrieval/src/recall");
 
 describe("daily archive", () => {
@@ -88,5 +88,52 @@ describe("daily archive", () => {
     expect(second.archives[0]!.skipped).toBe(true);
     expect(second.archives[0]!.reason).toBe("already archived");
     expect(getDailyArchives({ owner_id: ownerId, date })).toHaveLength(1);
+  });
+
+  test("repairs log turn metadata from existing message events before archive", async () => {
+    const ownerId = "demo-mom-owner";
+    const date = "2026-05-13";
+    const rawMessageId = "raw-existing-log";
+
+    const turn = recordConversationTurn({
+      owner_id: ownerId,
+      turn_date: date,
+      source: "log",
+      content: "今天星星主动收玩具，我很惊喜。",
+      metadata: {
+        mode: "log_with_contextual_reply",
+        pipeline_message_id: rawMessageId,
+        current_event_ids: ["stale-event-id"],
+      },
+    });
+    getDB().prepare(`
+      INSERT INTO memory_events (
+        id, raw_message_id, event_index, summary, original_text, event_type,
+        entities, emotion, tags, event_date, user_id, source, source_layer
+      ) VALUES (?, ?, 0, ?, ?, 'daily', '[]', '{}', '[]', ?, ?, 'user', 'extracted')
+    `).run("existing-event-id", rawMessageId, "星星主动收玩具", "今天星星主动收玩具，我很惊喜。", date, ownerId);
+    getDB().prepare(`
+      INSERT INTO pipeline_status (message_id, stage, status, result)
+      VALUES (?, 'indexed', 'done', '{"stored":1}')
+    `).run(rawMessageId);
+
+    const report = await repairDayIntegrity({ owner_id: ownerId, date });
+
+    expect(report.metadata_fixed).toBe(1);
+    expect(report.reprocessed).toBe(0);
+    expect(report.issues[0]).toMatchObject({
+      turn_id: turn.id,
+      message_id: rawMessageId,
+      issue: "invalid_event_ids",
+      action: "metadata_fixed",
+      event_ids: ["existing-event-id"],
+    });
+
+    const row = getDB().prepare("SELECT source, metadata FROM conversation_turns WHERE id = ?")
+      .get(turn.id) as { source: string; metadata: string };
+    const metadata = JSON.parse(row.metadata) as { current_event_ids: string[]; pipeline_message_id: string };
+    expect(row.source).toBe("log");
+    expect(metadata.pipeline_message_id).toBe(rawMessageId);
+    expect(metadata.current_event_ids).toEqual(["existing-event-id"]);
   });
 });
