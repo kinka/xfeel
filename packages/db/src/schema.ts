@@ -140,6 +140,22 @@ export function initSchema(db: Database): MemoryEventsFtsStatus {
       UNIQUE(owner_id, layer)
     );
 
+    -- 用户对长期理解的最终解释权。反馈独立于画像快照保存，重建不会覆盖用户选择。
+    CREATE TABLE IF NOT EXISTS understanding_feedback (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      understanding_key TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('confirm', 'reject', 'retract', 'correct')),
+      original_statement TEXT NOT NULL,
+      replacement_statement TEXT,
+      category TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      visibility TEXT NOT NULL DEFAULT 'private' CHECK(visibility IN ('private', 'family')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(owner_id, understanding_key)
+    );
+
     -- 管线状态
     CREATE TABLE IF NOT EXISTS pipeline_status (
       message_id TEXT PRIMARY KEY,
@@ -161,6 +177,7 @@ export function initSchema(db: Database): MemoryEventsFtsStatus {
     CREATE INDEX IF NOT EXISTS idx_conversation_archive ON conversation_turns(archive_id);
     CREATE INDEX IF NOT EXISTS idx_daily_archives_owner_date ON daily_archives(owner_id, archive_date);
     CREATE INDEX IF NOT EXISTS idx_memory_profiles_owner_layer ON memory_profiles(owner_id, layer);
+    CREATE INDEX IF NOT EXISTS idx_understanding_feedback_owner ON understanding_feedback(owner_id, updated_at);
     CREATE INDEX IF NOT EXISTS idx_pipeline_stage ON pipeline_status(stage, status);
 
     CREATE TABLE IF NOT EXISTS memory_open_facts (

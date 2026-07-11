@@ -17,7 +17,8 @@
     "nightly": "bun run scripts/nightly-worker.ts --hour=0 --minute=15",
     "nightly:once": "bun run scripts/nightly-worker.ts --once",
     "test:ui": "bash scripts/test-conversation-ui.sh",
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit"
   },
   "dependencies": {
     "zod": "^3.23.0",

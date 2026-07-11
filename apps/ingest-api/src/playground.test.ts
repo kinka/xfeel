@@ -30,6 +30,7 @@ process.env.WECHAT_DISPLAYABLE_ATTEMPT = "3";
 
 const { buildApp } = await import("./server");
 const { closeDB, getDB } = await import("../../../packages/db/src/database");
+const { upsertProfile } = await import("../../../packages/conversation/src/memory/profile-repository");
 
 describe("conversation playground", () => {
   let dbPath = "";
@@ -68,6 +69,28 @@ describe("conversation playground", () => {
     expect(res.body).toContain("URLSearchParams(location.search)");
     expect(res.body).toContain("/^\\d{4}-\\d{2}-\\d{2}$/");
     expect(res.body).toContain("dry_run:dryRun");
+  });
+
+  test("understanding feedback API changes the effective statement immediately", async () => {
+    const item = {
+      category: "interaction_preference", subject: "记录者", statement: "遇到压力时希望马上听建议。",
+      kind: "inferred", status: "active", confidence: 0.7,
+      support: { evidenceCount: 2, consistency: 1, userConfirmed: false },
+      supportDates: ["2026-05-01", "2026-06-01"],
+    } as const;
+    upsertProfile({ ownerId: "owner-understanding", layer: "long_term",
+      content: { narrative: "", understandings: [item], addressBook: [], openQuestions: [] } });
+
+    const before = await app.inject({ method: "GET", url: "/understanding?owner_id=owner-understanding" });
+    expect(before.statusCode).toBe(200);
+    const key = before.json().understandings[0].key;
+    const saved = await app.inject({ method: "POST", url: "/understanding/feedback", payload: {
+      owner_id: "owner-understanding", key, action: "correct", replacement_statement: "先听我说完，再一起想办法。",
+    } });
+    expect(saved.statusCode).toBe(200);
+    const after = await app.inject({ method: "GET", url: "/understanding?owner_id=owner-understanding" });
+    expect(after.json().understandings[0].statement).toContain("先听我说完");
+    expect(after.json().understandings[0].feedback.action).toBe("correct");
   });
 
   test("uses family owner ids for the playground dad and mom selectors", async () => {

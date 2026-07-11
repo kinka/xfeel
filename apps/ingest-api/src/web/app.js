@@ -73,6 +73,7 @@
     // 按人分池：看家人的记录时输入区只读（记录归属说话人本人，切回自己的视角再记）
     var me = state.me || {};
     var readonly = me.admin === false && me.self_owner_id && state.ownerId !== me.self_owner_id;
+    if ($("#understandingBtn")) $("#understandingBtn").hidden = Boolean(me.admin === false && me.self_owner_id && state.ownerId !== me.self_owner_id);
     document.querySelector(".composer").classList.toggle("readonly", !!readonly);
     var hint = $("#viewHint");
     if (readonly) {
@@ -761,6 +762,49 @@
     return parts.length ? parts.join(" · ") : "已登录";
   }
 
+  var U_LABELS = { comfort_strategy: "怎样接住你", interaction_preference: "沟通偏好", sensitivity: "需要轻拿轻放",
+    persona: "关于你", values: "你在乎的", relationship: "关系", stressor: "压力来源", parenting_style: "养育方式", member_trait: "家人特点" };
+  function openUnderstanding() {
+    $("#menuMask").classList.remove("show");
+    $("#understandingMask").classList.add("show");
+    var body = $("#understandingBody");
+    body.innerHTML = '<div class="empty">正在整理…</div>';
+    api("/understanding?owner_id=" + encodeURIComponent(state.ownerId)).then(function (res) {
+      var items = res.understandings || [];
+      if (!items.length) { body.innerHTML = '<div class="empty">还没有形成稳定理解<br/>继续记录一段时间后会出现在这里</div>'; return; }
+      body.innerHTML = items.map(function (u) {
+        var action = u.feedback && u.feedback.action;
+        return '<div class="u-card' + (u.effective ? '' : ' off') + '" data-key="' + esc(u.key) + '">' +
+          '<div class="u-kind">' + esc(U_LABELS[u.category] || u.category) + '</div><div class="u-text">' + esc(u.statement) + '</div>' +
+          '<div class="u-actions"><button data-action="confirm" class="' + (action === 'confirm' ? 'on' : '') + '">✓ 是的</button>' +
+          '<button data-action="correct" class="' + (action === 'correct' ? 'on' : '') + '">✎ 改一下</button>' +
+          '<button data-action="reject" class="' + (action === 'reject' ? 'on' : '') + '">不太准确</button>' +
+          '<button data-action="retract" class="' + (action === 'retract' ? 'on' : '') + '">不要再使用</button></div></div>';
+      }).join("");
+      Array.prototype.forEach.call(body.querySelectorAll("button[data-action]"), function (btn) {
+        btn.addEventListener("click", function () {
+          var action = btn.dataset.action, card = btn.closest(".u-card"), replacement = "";
+          if (action === "correct") {
+            replacement = prompt("你希望我怎样理解？", card.querySelector(".u-text").textContent) || "";
+            if (!replacement.trim()) return;
+          }
+          api("/understanding/feedback", { method: "POST", body: JSON.stringify({ owner_id: state.ownerId,
+            key: card.dataset.key, action: action, replacement_statement: replacement || undefined }) })
+            .then(function () {
+              // 原地反馈，避免重新拉取并重绘整个 sheet 导致滚动位置跳回顶部。
+              Array.prototype.forEach.call(card.querySelectorAll("button[data-action]"), function (item) {
+                item.classList.toggle("on", item.dataset.action === action);
+              });
+              card.classList.toggle("off", action === "reject" || action === "retract");
+              if (action === "correct") card.querySelector(".u-text").textContent = replacement.trim();
+              toast("已经记住你的选择");
+            })
+            .catch(function (e) { toast("没保存上：" + e.message); });
+        });
+      });
+    }).catch(function (e) { body.innerHTML = '<div class="empty">' + esc(e.message === 'forbidden' ? '只能查看和修改对自己的理解' : e.message) + '</div>'; });
+  }
+
   function refreshMe() {
     return api("/web/me").then(function (me) {
       state.me = me;
@@ -802,7 +846,8 @@
       $("#menuMask").classList.remove("show");
       openMoodReview();
     });
-    [["#calMask"], ["#menuMask"], ["#msMask"], ["#moodMask"]].forEach(function (pair) {
+    $("#understandingBtn").addEventListener("click", openUnderstanding);
+    [["#calMask"], ["#menuMask"], ["#msMask"], ["#moodMask"], ["#understandingMask"]].forEach(function (pair) {
       var mask = $(pair[0]);
       mask.addEventListener("click", function (e) { if (e.target === mask) mask.classList.remove("show"); });
     });

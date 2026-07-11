@@ -1,5 +1,6 @@
 import { getLongTermProfile, getRecentProfile } from "./profile-repository";
 import type { UnderstandingItem } from "./profile-types";
+import { applyUnderstandingFeedback } from "./understanding-feedback";
 
 export interface UnderstandingContext {
   hasLongTerm: boolean;
@@ -33,7 +34,7 @@ export function loadUnderstandingContext(input: {
     const c = longTerm.content;
     const parts: string[] = [];
     if (c.narrative) parts.push(c.narrative);
-    const understandings = (c.understandings || [])
+    const understandings = applyUnderstandingFeedback(input.owner_id, c.understandings || [])
       .filter(u => u.status === "active")
       .slice(0, maxU)
       .map(formatUnderstanding);

@@ -47,6 +47,17 @@ export {
 export {
   loadUnderstandingContext,
 } from "./memory/profile-context";
+export {
+  applyUnderstandingFeedback,
+  listUnderstandingFeedback,
+  saveUnderstandingFeedback,
+  understandingKey,
+} from "./memory/understanding-feedback";
+export type {
+  UnderstandingFeedback,
+  UnderstandingFeedbackAction,
+  UnderstandingVisibility,
+} from "./memory/understanding-feedback";
 export type {
   RecallIntent,
   RecallDirection,

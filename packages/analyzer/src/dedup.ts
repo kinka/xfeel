@@ -62,6 +62,7 @@ export function checkDuplicate(
   lookbackDays: number = 7,
   threshold: number = 0.45,
 ): MemoryEvent | null {
+  if (!newEvent.id) return null;
   const db = getDB();
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - lookbackDays);
@@ -176,6 +177,7 @@ ${JSON.stringify(pairs, null, 2)}
         if (!pair) continue;
 
         if (j.action === "duplicate") {
+          if (!pair.a.id || !pair.b.id) continue;
           result.duplicates_found++;
           const keepId = j.merged_to === pair.a.id ? pair.a.id : pair.b.id;
           const removeId = keepId === pair.a.id ? pair.b.id : pair.a.id;
@@ -201,6 +203,7 @@ ${JSON.stringify(pairs, null, 2)}
             merged_into: keepId,
           });
         } else if (j.action === "split") {
+          if (!pair.a.id || !pair.b.id) continue;
           result.splits++;
           result.details.push({
             action: "split",
@@ -209,6 +212,7 @@ ${JSON.stringify(pairs, null, 2)}
             split_into: [pair.b.id],
           });
         } else {
+          if (!pair.a.id) continue;
           result.details.push({
             action: "keep",
             event_id: pair.a.id,
@@ -220,6 +224,7 @@ ${JSON.stringify(pairs, null, 2)}
       console.error("LLM dedup batch failed:", e);
       // 降级: 全部保留
       for (const pair of batch) {
+        if (!pair.a.id) continue;
         result.details.push({ action: "keep", event_id: pair.a.id, summary: pair.a.summary });
       }
     }

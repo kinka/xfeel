@@ -7,6 +7,7 @@ const { closeDB, getDB } = await import("../../../db/src/database");
 const { initSchema } = await import("../../../db/src/schema");
 const { getLongTermProfile, getRecentProfile, upsertProfile } = await import("./profile-repository");
 const { loadUnderstandingContext } = await import("./profile-context");
+const { listUnderstandingFeedback, saveUnderstandingFeedback, understandingKey } = await import("./understanding-feedback");
 import type { LongTermProfileContent, RecentProfileContent } from "./profile-types";
 
 const longTermContent: LongTermProfileContent = {
@@ -129,5 +130,21 @@ describe("memory profile repository + context", () => {
   test("no profile returns empty context", () => {
     expect(loadUnderstandingContext({ owner_id: "ghost" }).text).toBe("");
     expect(loadUnderstandingContext({}).text).toBe("");
+  });
+
+  test("user feedback confirms, corrects, and retracts understandings without crossing owners", () => {
+    upsertProfile({ ownerId: "dad", layer: "long_term", content: longTermContent });
+    const comfort = longTermContent.understandings[0]!;
+    const sensitivity = longTermContent.understandings[1]!;
+
+    saveUnderstandingFeedback({ ownerId: "dad", item: comfort, action: "correct", replacementStatement: "先听我说完，再问我要不要一起想办法。" });
+    saveUnderstandingFeedback({ ownerId: "dad", item: sensitivity, action: "retract" });
+
+    const ctx = loadUnderstandingContext({ owner_id: "dad" });
+    expect(ctx.text).toContain("先听我说完");
+    expect(ctx.text).not.toContain("孩子生病是高敏感话题");
+    expect(listUnderstandingFeedback("dad")).toHaveLength(2);
+    expect(listUnderstandingFeedback("mom")).toHaveLength(0);
+    expect(understandingKey(comfort)).toHaveLength(24);
   });
 });

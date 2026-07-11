@@ -17,7 +17,7 @@ trap cleanup EXIT
 
 rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal" "$SERVER_LOG"
 
-XFEEL_DB_PATH="$DB_PATH" PORT="$PORT" LLM_BASE_URL="http://127.0.0.1:9" LLM_TIMEOUT_MS="250" bun run api >"$SERVER_LOG" 2>&1 &
+XFEEL_DB_PATH="$DB_PATH" PORT="$PORT" XFEEL_AUTH_DISABLED="1" LLM_BASE_URL="http://127.0.0.1:9" LLM_TIMEOUT_MS="250" bun run api >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 for _ in {1..80}; do
@@ -62,11 +62,11 @@ cat >"$JS_FILE" <<'JS'
 
     q('[data-testid="message-input"]').value = 'UI_TEST_STEP_ONE baby milestone happy';
     q('[data-testid="send-message"]').click();
-    await waitFor(() => q('[data-testid="status"]').textContent === 'ok');
+    await waitFor(() => q('[data-testid="chat-log"]').textContent.includes('UI_TEST_STEP_ONE') && !q('[data-testid="send-message"]').disabled);
 
     q('[data-testid="message-input"]').value = 'UI_TEST_STEP_TWO night waking tired';
     q('[data-testid="send-message"]').click();
-    await waitFor(() => q('[data-testid="status"]').textContent === 'ok');
+    await waitFor(() => q('[data-testid="chat-log"]').textContent.includes('UI_TEST_STEP_TWO') && !q('[data-testid="send-message"]').disabled);
 
     q('[data-testid="run-archive"]').click();
     await waitFor(() => q('[data-testid="status"]').textContent === 'archived', 20000);

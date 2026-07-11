@@ -25,6 +25,7 @@ import { roleLLMConfig } from "../../../packages/ai-client/src/roles";
 import {
   chatWithMemory, getConversationTurns, handleProductMessage, logWithContextualReply, recordConversationTurn,
   loadAmbientContext, loadUnderstandingContext, getLongTermProfile, getRecentProfile,
+  applyUnderstandingFeedback, listUnderstandingFeedback, saveUnderstandingFeedback, understandingKey,
   type ConversationTurn,
 } from "../../../packages/conversation/src/index";
 import { getDailyArchives, runDailyArchive } from "../../../packages/archive/src/index";
@@ -1319,6 +1320,51 @@ export async function buildApp() {
       scope: "media",
     }, ttlMs);
     return reply.send({ token, expires_at: expiresAt });
+  });
+
+  /** GET /understanding — 用户可查看、审计并纠正系统当前对自己的长期理解。 */
+  app.get("/understanding", async (req, reply) => {
+    const { owner_id } = req.query as { owner_id?: string };
+    const ownerId = owner_id?.trim() || "";
+    if (!ownerId) return reply.status(400).send({ error: "owner_id is required" });
+    if (!canManageOwnUnderstanding(req, ownerId)) return reply.status(403).send({ error: "forbidden", reason: "self_only" });
+    const longTerm = getLongTermProfile(ownerId);
+    const recent = getRecentProfile(ownerId);
+    const feedback = listUnderstandingFeedback(ownerId);
+    const feedbackByKey = new Map(feedback.map(item => [item.understandingKey, item]));
+    const raw = (longTerm?.content.understandings || []).filter(item => item.status === "active");
+    return reply.send({
+      owner_id: ownerId,
+      profile_version: longTerm?.version || 0,
+      generated_at: longTerm?.generatedAt || null,
+      recent: recent?.content || null,
+      understandings: raw.map(item => {
+        const key = understandingKey(item);
+        const saved = feedbackByKey.get(key);
+        const applied = applyUnderstandingFeedback(ownerId, [item])[0];
+        return { key, ...item, statement: applied?.statement || item.statement,
+          effective: Boolean(applied), feedback: saved ? { action: saved.action, replacement_statement: saved.replacementStatement,
+            visibility: saved.visibility, updated_at: saved.updatedAt } : null };
+      }),
+    });
+  });
+
+  /** POST /understanding/feedback — 确认、否认、撤回或改写一条理解；立即影响后续回复。 */
+  app.post("/understanding/feedback", async (req, reply) => {
+    const body = req.body as { owner_id?: string; key?: string; action?: "confirm" | "reject" | "retract" | "correct";
+      replacement_statement?: string; visibility?: "private" | "family" };
+    const ownerId = body.owner_id?.trim() || "";
+    if (!ownerId || !body.key || !body.action) return reply.status(400).send({ error: "owner_id, key and action are required" });
+    if (!canManageOwnUnderstanding(req, ownerId)) return reply.status(403).send({ error: "forbidden", reason: "self_only" });
+    const item = (getLongTermProfile(ownerId)?.content.understandings || []).find(candidate => understandingKey(candidate) === body.key);
+    if (!item) return reply.status(404).send({ error: "understanding not found" });
+    try {
+      const feedback = saveUnderstandingFeedback({ ownerId, item, action: body.action,
+        replacementStatement: body.replacement_statement, visibility: body.visibility });
+      return reply.send({ ok: true, feedback });
+    } catch (error) {
+      return reply.status(400).send({ error: safeErrorMessage(error) });
+    }
   });
 
   /**
@@ -2709,6 +2755,12 @@ function isMediaFetchPath(method: string, path: string): boolean {
 
 function authDisabled(): boolean {
   return /^(1|true|yes|on)$/i.test(process.env.XFEEL_AUTH_DISABLED || "");
+}
+
+function canManageOwnUnderstanding(req: unknown, ownerId: string): boolean {
+  if (authDisabled()) return true;
+  const auth = (req as AuthedRequest).auth;
+  return Boolean(auth?.admin || (auth?.claims?.sub && auth.claims.sub === ownerId));
 }
 
 /** 登录者身份：admin（看所有家庭）或普通家庭成员（ownerIds = 自己家庭的 owner 集合）。 */

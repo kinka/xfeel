@@ -12,6 +12,12 @@ const { listDeliverableCare } = await import("./care-queue");
 let recallResult: unknown = null;
 let recallShouldThrow = false;
 let llmEcho: string | null = null;
+const TEST_TODAY = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
+function testDay(delta: number) {
+  const d = new Date(`${TEST_TODAY}T00:00:00+08:00`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
+}
 
 const deps = {
   recall: async () => {
@@ -46,7 +52,7 @@ function oldHit(overrides: Record<string, unknown> = {}) {
     entities: ["星星"],
     emotion: { primary: "担心" },
     tags: [],
-    event_date: "2026-01-10",
+    event_date: testDay(-30),
     ...overrides,
   };
 }
@@ -89,7 +95,7 @@ describe("echo care", () => {
   test("creates an echo from a semantically similar old event", async () => {
     recallResult = recallResultWith(oldHit(), 0.72);
     llmEcho = "一月那会儿星星也烧到39度，三天就退了，别太慌。";
-    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(item).not.toBeNull();
     expect(item!.kind).toBe("echo");
     expect(item!.content).toContain("一月");
@@ -101,7 +107,7 @@ describe("echo care", () => {
   test("falls back to deterministic template when LLM fails", async () => {
     recallResult = recallResultWith(oldHit(), 0.72);
     llmEcho = null; // LLM 抛错
-    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(item).not.toBeNull();
     expect(item!.content).toContain("星星发烧39度");
   });
@@ -109,13 +115,13 @@ describe("echo care", () => {
   test("skips when similarity is below threshold", async () => {
     recallResult = recallResultWith(oldHit(), 0.4);
     llmEcho = "不该被用到";
-    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(item).toBeNull();
   });
 
   test("skips recent events (echo needs age)", async () => {
-    recallResult = recallResultWith(oldHit({ event_date: "2026-07-03" }), 0.8);
-    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    recallResult = recallResultWith(oldHit({ event_date: testDay(-2) }), 0.8);
+    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(item).toBeNull();
   });
 
@@ -125,27 +131,27 @@ describe("echo care", () => {
     const sensitiveNew = await maybeCreateEchoCare({
       owner_id: owner,
       events: [newEvent({ summary: "婆婆去世了，这几天在办后事", original_text: "婆婆去世了" })],
-      date: "2026-07-05",
+      date: TEST_TODAY,
     }, deps);
     expect(sensitiveNew).toBeNull();
 
     recallResult = recallResultWith(oldHit({ summary: "上次流产后的复查", original_text: "上次流产后的复查" }), 0.8);
-    const sensitiveOld = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    const sensitiveOld = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(sensitiveOld).toBeNull();
   });
 
   test("caps one echo per owner per day", async () => {
     recallResult = recallResultWith(oldHit(), 0.72);
     llmEcho = "回声句";
-    const first = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    const first = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(first).not.toBeNull();
-    const second = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    const second = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(second).toBeNull();
   });
 
   test("recall failure degrades to no echo, never throws", async () => {
     recallShouldThrow = true;
-    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: "2026-07-05" }, deps);
+    const item = await maybeCreateEchoCare({ owner_id: owner, events: [newEvent()], date: TEST_TODAY }, deps);
     expect(item).toBeNull();
   });
 });

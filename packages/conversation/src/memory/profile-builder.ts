@@ -13,6 +13,7 @@ import type {
   UnderstandingCategory,
   UnderstandingItem,
 } from "./profile-types";
+import { listUnderstandingFeedback } from "./understanding-feedback";
 
 const RECENT_WINDOW_DAYS = 21; // 近期窗口：约三周，覆盖“最近一两周细节 + 一点缓冲”
 const LONG_TERM_BATCH = 50; // 长期归纳每批喂给 LLM 的归档天数：滚动精炼(refine)，全覆盖不抽样
@@ -166,7 +167,7 @@ async function buildLongTermUnderstanding(
   let folded = false;
   for (const batch of batches) {
     for (const a of batch) knownDates.add(a.archive_date);
-    const next = await synthesizeLongTermBatch({ ownerLabel, date, recent, prior: acc, batch, knownDates, addressHint });
+    const next = await synthesizeLongTermBatch({ ownerId, ownerLabel, date, recent, prior: acc, batch, knownDates, addressHint });
     if (next) { acc = next; folded = true; }
   }
 
@@ -184,6 +185,7 @@ async function buildLongTermUnderstanding(
 
 /** 滚动精炼(refine)的单批：在 prior 理解之上、用这批归档更新出完整理解集合。失败/空则保留 prior。 */
 async function synthesizeLongTermBatch(input: {
+  ownerId: string;
   ownerLabel: string;
   date: string;
   recent: RecentProfileContent | undefined;
@@ -192,9 +194,12 @@ async function synthesizeLongTermBatch(input: {
   knownDates: Set<string>;
   addressHint: string;
 }): Promise<LongTermProfileContent | null> {
-  const { ownerLabel, date, recent, prior, batch, knownDates, addressHint } = input;
+  const { ownerId, ownerLabel, date, recent, prior, batch, knownDates, addressHint } = input;
   const hasPrior = !!prior?.understandings?.length;
   const archiveText = batch.map(a => `[${a.archive_date}] ${clip(a.summary, 280)}`).join("\n");
+  const feedbackText = listUnderstandingFeedback(ownerId).map(f =>
+    `- ${f.action}: ${f.originalStatement}${f.replacementStatement ? ` → ${f.replacementStatement}` : ""}`,
+  ).join("\n") || "（无）";
   const existingText = hasPrior
     ? prior!.understandings.map(u => `- (${u.category}/${u.subject}) ${u.statement} ⟵ ${(u.supportDates || []).join(",")}`).join("\n")
     : "（暂无既有理解）";
@@ -214,6 +219,7 @@ async function synthesizeLongTermBatch(input: {
       (recent?.stateSummary ? `近期状态总结：\n${recent.stateSummary}\n\n` : "") +
       `本批归档（共 ${batch.length} 天，按日期）：\n${archiveText}\n\n` +
       `称呼线索（已记录的家庭成员叫法）：\n${addressHint || "（无）"}\n\n` +
+      `用户对既有理解的明确反馈（最高优先级）：\n${feedbackText}\n\n` +
       `${mergeInstruction}\n\n` +
       `请沉淀出对 ${ownerLabel} 的“长期理解画像”，目标是让助手能像家人一样懂 ${ownerLabel}。输出 JSON：\n` +
       `{\n  "narrative": "一段 3-5 句的自然语言画像：${ownerLabel} 是个怎样的人、在乎什么、最近的底色",\n` +
@@ -228,7 +234,8 @@ async function synthesizeLongTermBatch(input: {
       `1. 优先输出“共情可执行”的理解（comfort_strategy/interaction_preference/sensitivity）：怎样回应 ${ownerLabel} 才贴心、什么话题要轻拿轻放。\n` +
       `2. 每条 understanding 必须至少有 2 个 supportDates，且日期必须来自“既有理解里出现过的日期”或本批归档日期；只有单次/微弱信号的不要升格为稳定理解。\n` +
       `3. 不要写进具体数字/某一天的具体事件当结论——那是事件证据层的事；这里只写稳定的、反复出现的理解。\n` +
-      `4. understandings 最多 12 条，openQuestions 最多 4 条。`,
+      `4. understandings 最多 12 条，openQuestions 最多 4 条。\n` +
+      `5. 用户反馈是硬约束：confirm/correct 要保留其意思；reject/retract 的原意不得换一种说法重新加入。`,
       "你是 xfeel 的长期理解归纳助手。只输出 JSON。理解必须基于反复印证的归档信号，不编造、不过度概括。",
     );
     const understandings = normalizeUnderstandings(out.understandings, knownDates, date);

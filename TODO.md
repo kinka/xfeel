@@ -8,16 +8,16 @@
 
 ## Must Do Before Public Release
 
-- [ ] Rotate any Parse credentials that were previously committed.
+- [x] Rotate/retire Parse credentials that were previously committed; the Parse integration was removed.
   - Historical commits contained a Parse application id and master key in scripts.
   - Treat those credentials as compromised even though the current source no longer includes the old Parse integration scripts.
-- [ ] Rewrite Git history before pushing to a public remote.
+- [x] Rewrite Git history before pushing to a public remote.（2026-07-07 已重开并清理旧对象）
   - Use `git filter-repo` or BFG to remove historical Parse credentials.
   - After rewriting, re-run a secret scan across all refs, not just `HEAD`.
-- [ ] Choose and add a license.
+- [x] Choose and add a license.（MIT 已完成）
   - Add `LICENSE`.
   - Add matching `license` metadata to `package.json` if this project will be published as a package.
-- [ ] Add public repo hygiene files.
+- [ ] Add remaining public repo hygiene file: `SECURITY.md`.（`.env.example` / `CONTRIBUTING.md` 已完成）
   - `.env.example`
   - `SECURITY.md`
   - `CONTRIBUTING.md`
@@ -26,7 +26,7 @@
   - Rename `package.json` from `xfeel-v2` if needed.
   - Decide whether `private: true` should remain.
   - Add repository, description, author, and keywords metadata.
-- [ ] Make CI green and explicit.
+- [x] Make CI green and explicit.（`bun run typecheck` + `bun test` + GitHub Actions）
   - Keep `bun test` as the baseline.
   - Fix or scope `tsc --noEmit` so typecheck has a stable public command.
   - Add CI workflow after the commands are reliable.
@@ -51,7 +51,7 @@
 
 - [ ] Remove or untrack local tool config.
   - `.claude/settings.json` is currently tracked and should likely be local-only.
-- [ ] Add automated secret scanning.
+- [x] Add automated secret scanning.（CI 使用 gitleaks）
   - At minimum run a one-shot scan before public release.
   - Prefer CI or pre-commit coverage for future changes.
 - [ ] Audit one-time repair and experiment scripts.
