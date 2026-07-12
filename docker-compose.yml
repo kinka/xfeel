@@ -2,7 +2,7 @@ services:
   xfeel:
     build: .
     ports:
-      - "3100:3100"
+      - "8000:8000"
     env_file:
       - .env
     environment:

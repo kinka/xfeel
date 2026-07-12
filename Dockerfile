@@ -15,5 +15,5 @@ COPY examples ./examples
 ENV XFEEL_DB_PATH=/app/data/xfeel.db
 VOLUME ["/app/data"]
 
-EXPOSE 3100
+EXPOSE 8000
 CMD ["sh", "-c", "bun run packages/db/src/init.ts && bun run apps/ingest-api/src/server.ts"]

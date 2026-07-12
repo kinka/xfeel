@@ -52,7 +52,7 @@ import {
   type OllamaEmbeddingWarmupResult,
 } from "../../../scripts/embedding-common";
 
-const PORT = Number(process.env.PORT) || 3100;
+const PORT = Number(process.env.PORT) || 8000;
 const PLAYGROUND_DAD_OWNER_ID = process.env.XFEEL_DAD_OWNER_ID || "demo-dad-owner";
 const PLAYGROUND_MOM_OWNER_ID = process.env.XFEEL_MOM_OWNER_ID || "demo-mom-owner";
 let embeddingStartupStatus: OllamaEmbeddingWarmupResult | { ok: false; skipped: true; reason: string } = {

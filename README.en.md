@@ -40,7 +40,7 @@ bun run api
 bun run import:quick
 ```
 
-Then open `http://localhost:3100/app` (family app) or `/dashboard` (admin view).
+Then open `http://localhost:8000/app` (family app) or `/dashboard` (admin view).
 
 ### Docker
 

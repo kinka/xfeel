@@ -296,15 +296,15 @@ JSON 字段以 TEXT 形式存储。常见字段结构：
 典型请求：
 
 ```bash
-curl -X POST http://localhost:3100/conversation/chat \
+curl -X POST http://localhost:8000/conversation/chat \
   -H "Content-Type: application/json" \
   -d '{"text":"今天星星自己走了三步，我特别开心","owner_id":"demo-mom-owner","date":"2026-05-12"}'
 
-curl -X POST http://localhost:3100/archive/daily/run \
+curl -X POST http://localhost:8000/archive/daily/run \
   -H "Content-Type: application/json" \
   -d '{"date":"2026-05-12","owner_id":"demo-mom-owner","force":true}'
 
-curl -X POST http://localhost:3100/recall \
+curl -X POST http://localhost:8000/recall \
   -H "Content-Type: application/json" \
   -d '{"entities":["星星"],"owner_id":"demo-mom-owner","limit":10}'
 ```
@@ -314,7 +314,7 @@ curl -X POST http://localhost:3100/recall \
 | 任务 | 命令或入口 | 说明 |
 | --- | --- | --- |
 | 初始化数据库 | `bun run db:init` | 创建 schema、索引和 FTS 触发器 |
-| 启动 API | `bun run api` | 默认监听 `http://localhost:3100` |
+| 启动 API | `bun run api` | 默认监听 `http://localhost:8000` |
 | 日终归档 | `bun run archive:daily --date=2026-05-12 --owner=demo-mom-owner` | CLI 触发，与 API 同一套逻辑 |
 | 日终试运行 | `bun run archive:daily --date=2026-05-12 --owner=demo-mom-owner --dry-run` | 生成 summary，不写归档和事件 |
 | Embedding 重建 | `bun run scripts/build-memory-embeddings.ts --db data/xfeel.db --batch-size 32` | 从当前 `memory_events` 重建/补齐 `memory_embeddings` |
@@ -335,8 +335,8 @@ XFEEL_DB_PATH=/tmp/xfeel-verify.db bun run api
 ### 服务和数据库是否正常
 
 ```bash
-curl http://localhost:3100/health
-curl http://localhost:3100/stats
+curl http://localhost:8000/health
+curl http://localhost:8000/stats
 sqlite3 data/xfeel.db "select count(*) from memory_events;"
 ```
 
@@ -365,11 +365,11 @@ sqlite3 data/xfeel.db "select message_id,stage,status,result,error,updated_at fr
 - semantic/hybrid 路径是否有同 owner 的 `memory_embeddings`，以及 embedding provider 是否可用。
 
 ```bash
-curl -X POST http://localhost:3100/recall \
+curl -X POST http://localhost:8000/recall \
   -H "Content-Type: application/json" \
   -d '{"text":"夜醒","owner_id":"demo-mom-owner","limit":5}'
 
-curl "http://localhost:3100/events?owner_id=demo-mom-owner&limit=5"
+curl "http://localhost:8000/events?owner_id=demo-mom-owner&limit=5"
 
 sqlite3 data/xfeel.db "select owner_id,target_type,count(*) from memory_embeddings group by owner_id,target_type;"
 ```
@@ -383,8 +383,8 @@ sqlite3 data/xfeel.db "select owner_id,target_type,count(*) from memory_embeddin
 - turns 被归档后，`GET /conversation/turns` 默认不返回，需要 `include_archived=true`。
 
 ```bash
-curl "http://localhost:3100/conversation/turns?owner_id=demo-mom-owner&date=2026-05-12&include_archived=true"
-curl "http://localhost:3100/archive/daily?owner_id=demo-mom-owner&date=2026-05-12"
+curl "http://localhost:8000/conversation/turns?owner_id=demo-mom-owner&date=2026-05-12&include_archived=true"
+curl "http://localhost:8000/archive/daily?owner_id=demo-mom-owner&date=2026-05-12"
 ```
 
 ### 日期和时区看起来不对
@@ -416,7 +416,7 @@ bun run api
 打开测试页面：
 
 ```text
-http://localhost:3100/conversation/playground
+http://localhost:8000/conversation/playground
 ```
 
 白天用 `/conversation/chat` 做对话闭环；需要立即沉淀为长期事件时用 `/conversation/log`；晚上用 `/archive/daily/run` 或 `bun run archive:daily` 做归档。归档完成后，用 `/recall`、`/events`、`/dashboard`、`/analytics/summary` 检查长期记忆是否进入事实层；召回质量变更再看 `eval-embedding-recall.ts` 和 `eval-precision-real.ts`。

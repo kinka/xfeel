@@ -124,20 +124,20 @@ bun run db:init
 bun run api
 
 # 5. 测试摄取
-curl -X POST http://localhost:3100/ingest \
+curl -X POST http://localhost:8000/ingest \
   -H "Content-Type: application/json" \
   -d '{"text":"星星今天第一次站起来了！好开心","owner_id":"demo-mom-owner"}'
 
 # 6. 检索记忆
-curl -X POST http://localhost:3100/recall \
+curl -X POST http://localhost:8000/recall \
   -H "Content-Type: application/json" \
   -d '{"entities":["星星"]}'
 
 # 7. 查看统计
-curl http://localhost:3100/stats
+curl http://localhost:8000/stats
 ```
 
-启动后打开 `http://localhost:3100/app`（家人用移动端页面）或 `/dashboard`（管理台）。
+启动后打开 `http://localhost:8000/app`（家人用移动端页面）或 `/dashboard`（管理台）。
 
 想先看效果，可导入内置的合成 demo 日记：
 
@@ -235,12 +235,12 @@ XFEEL_DB_PATH=/tmp/xfeel-verify.db bun run scripts/import-diaries.ts --skip-llm 
 
 ```bash
 # 记录并响应一条对话
-curl -X POST http://localhost:3100/conversation/chat \
+curl -X POST http://localhost:8000/conversation/chat \
   -H "Content-Type: application/json" \
   -d '{"text":"今天星星自己走了三步，我特别开心","owner_id":"demo-mom-owner"}'
 
 # 对某一天做日终归档
-curl -X POST http://localhost:3100/archive/daily/run \
+curl -X POST http://localhost:8000/archive/daily/run \
   -H "Content-Type: application/json" \
   -d '{"date":"2026-05-12","owner_id":"demo-mom-owner"}'
 
