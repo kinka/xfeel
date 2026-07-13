@@ -880,14 +880,20 @@ export async function buildApp() {
     if (!signature || !timestamp || !nonce || echostr === undefined) {
       return reply.status(400).type("text/plain; charset=utf-8").send("missing wechat verification params");
     }
-    return reply
-      .type("text/plain; charset=utf-8")
-      .send(isValidWechatSignature({ signature, timestamp, nonce }) ? echostr : "Token verfication failed");
+    if (!isValidWechatSignature({ signature, timestamp, nonce })) {
+      return reply.status(403).type("text/plain; charset=utf-8").send("invalid wechat signature");
+    }
+    return reply.type("text/plain; charset=utf-8").send(echostr);
   });
 
   /** POST /wechat — 原 xfeel 微信公众号 XML webhook；内部复用 v3 product loop */
   app.post("/wechat", async (req, reply) => {
     const startedAt = Date.now();
+    const { signature, timestamp, nonce } = req.query as Record<string, string>;
+    if (!signature || !timestamp || !nonce || !isValidWechatSignature({ signature, timestamp, nonce })) {
+      req.log.warn({ event: "wechat_signature_rejected" }, "wechat_signature_rejected");
+      return reply.status(403).type("text/plain; charset=utf-8").send("invalid wechat signature");
+    }
     const payload = typeof req.body === "string" ? req.body : "";
     if (!payload.trim()) return reply.status(400).type("text/plain; charset=utf-8").send("empty wechat payload");
 
@@ -2124,7 +2130,8 @@ function appendCareFollowUp(reply: string, ownerId: string | undefined, intent?:
   }
 }
 
-const WECHAT_TOKEN = process.env.WECHAT_TOKEN || "xfeel";
+const WECHAT_TOKEN = process.env.WECHAT_TOKEN?.trim() || "";
+const WECHAT_SIGNATURE_MAX_SKEW_SECONDS = Number(process.env.WECHAT_SIGNATURE_MAX_SKEW_SECONDS || 300);
 const WECHAT_RETRY_CACHE_TTL_MS = 30_000;
 const WECHAT_RETRY_HOLD_TIMEOUT_MS = Number(process.env.WECHAT_RETRY_HOLD_TIMEOUT_MS || 6_000);
 const WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS = Number(process.env.WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS || 3_800);
@@ -2140,11 +2147,15 @@ interface WechatSignatureInput {
 }
 
 function isValidWechatSignature({ signature, timestamp, nonce }: WechatSignatureInput) {
+  if (!WECHAT_TOKEN || !/^\d{10}$/.test(timestamp) || !nonce || !/^[a-f\d]{40}$/i.test(signature)) return false;
+  const timestampSeconds = Number(timestamp);
+  if (!Number.isSafeInteger(timestampSeconds)
+    || Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > WECHAT_SIGNATURE_MAX_SKEW_SECONDS) return false;
   const digest = crypto
     .createHash("sha1")
     .update([WECHAT_TOKEN, timestamp, nonce].sort().join(""))
     .digest("hex");
-  return digest === signature;
+  return crypto.timingSafeEqual(Buffer.from(digest, "hex"), Buffer.from(signature, "hex"));
 }
 
 interface WechatRequestXml {

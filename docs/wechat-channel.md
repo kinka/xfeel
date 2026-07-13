@@ -29,6 +29,10 @@ XFEEL_WEB_URL=https://your-domain.example   # OAuth 回跳与帮助文案里的�
 XFEEL_JWT_SECRET=一串长随机字符串             # 网页登录态签名
 ```
 
+`WECHAT_TOKEN` 为必填密钥，未设置时 `/wechat` 会拒绝所有回调。GET 服务器验证和
+POST 消息回调都会验证微信 SHA-1 签名，并默认只接受与服务器时间相差 5 分钟内的请求。
+不要把真实 Token 提交到 Git；更换 Token 时要同步更新公众平台后台和服务运行环境。
+
 ## 2. 用户旅程（开箱即用，无需额外配置）
 
 - **首条消息自动开户**：新 openid 发来第一条消息时自动建家庭并绑定占位身份

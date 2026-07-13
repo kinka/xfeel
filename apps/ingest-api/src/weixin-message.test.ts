@@ -27,6 +27,7 @@ process.env.XFEEL_AUTH_DISABLED = "1"; // 测试内直连数据接口，旁路 J
 process.env.WECHAT_RETRY_HOLD_TIMEOUT_MS = "150";
 process.env.WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS = "300";
 process.env.WECHAT_DISPLAYABLE_ATTEMPT = "3";
+process.env.WECHAT_TOKEN = "test-only-wechat-token";
 
 const { buildApp } = await import("./server");
 const { closeDB, getDB } = await import("../../../packages/db/src/database");
@@ -53,8 +54,13 @@ function wechatVoiceXml(recognition: string, msgId = "voice-msg-1") {
   return wechatXml("", "voice", msgId, `<MediaId><![CDATA[media-${msgId}]]></MediaId>\n<Format><![CDATA[amr]]></Format>\n<Recognition><![CDATA[${recognition}]]></Recognition>`);
 }
 
-function validWechatSignature(timestamp: string, nonce: string, token = "xfeel") {
+function validWechatSignature(timestamp: string, nonce: string, token = process.env.WECHAT_TOKEN!) {
   return crypto.createHash("sha1").update([token, timestamp, nonce].sort().join("")).digest("hex");
+}
+
+function signedWechatUrl(timestamp = String(Math.floor(Date.now() / 1000)), nonce = crypto.randomUUID()) {
+  const signature = validWechatSignature(timestamp, nonce);
+  return `/wechat?signature=${signature}&timestamp=${timestamp}&nonce=${encodeURIComponent(nonce)}`;
 }
 
 describe("wechat message entry", () => {
@@ -115,7 +121,7 @@ describe("wechat message entry", () => {
 <MsgType><![CDATA[event]]></MsgType>
 <Event><![CDATA[subscribe]]></Event>
 </xml>`;
-    const res = await app.inject({ method: "POST", url: "/wechat", headers: { "content-type": "text/xml" }, payload: xml });
+    const res = await app.inject({ method: "POST", url: signedWechatUrl(), headers: { "content-type": "text/xml" }, payload: xml });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain("欢迎关注");
     expect(res.body).toContain("邀请");
@@ -135,7 +141,7 @@ describe("wechat message entry", () => {
 
     // 用户在公众号回复暗号 → 认领
     const claim = await app.inject({
-      method: "POST", url: "/wechat", headers: { "content-type": "text/xml" },
+      method: "POST", url: signedWechatUrl(), headers: { "content-type": "text/xml" },
       payload: wechatXml(code, "text", "web-login-claim"),
     });
     expect(claim.statusCode).toBe(200);
@@ -160,7 +166,7 @@ describe("wechat message entry", () => {
   });
 
   test("keeps original /wechat verification path compatible", async () => {
-    const timestamp = "1718000000";
+    const timestamp = String(Math.floor(Date.now() / 1000));
     const nonce = "nonce-1";
     const echostr = "hello-xfeel";
     const signature = validWechatSignature(timestamp, nonce);
@@ -172,12 +178,30 @@ describe("wechat message entry", () => {
     expect(res.body).toBe(echostr);
   });
 
+  test("rejects unsigned, invalid, and stale /wechat callbacks before parsing XML", async () => {
+    const payload = wechatXml("不应被处理", "text", "forged-message");
+    const unsigned = await app.inject({ method: "POST", url: "/wechat", headers: { "content-type": "text/xml" }, payload });
+    expect(unsigned.statusCode).toBe(403);
+
+    const invalid = await app.inject({
+      method: "POST",
+      url: `/wechat?signature=${"0".repeat(40)}&timestamp=${Math.floor(Date.now() / 1000)}&nonce=forged`,
+      headers: { "content-type": "text/xml" }, payload,
+    });
+    expect(invalid.statusCode).toBe(403);
+
+    const staleTimestamp = String(Math.floor(Date.now() / 1000) - 301);
+    const stale = await app.inject({ method: "POST", url: signedWechatUrl(staleTimestamp, "stale"), headers: { "content-type": "text/xml" }, payload });
+    expect(stale.statusCode).toBe(403);
+    expect((getDB().prepare("SELECT COUNT(*) AS c FROM conversation_turns").get() as { c: number }).c).toBe(0);
+  });
+
   test("accepts original /wechat XML webhook and applies alias context", async () => {
     await onboardWeixinSpeaker();
 
     const log = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatXml("记：今天我老婆带阿星出门，阿星很开心。"),
     });
@@ -197,7 +221,7 @@ describe("wechat message entry", () => {
   test("auto-provisions a fresh /wechat voice user and records instead of blocking on bind", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatVoiceXml("记：今天阿星夜醒。", "voice-unbound-1"),
     });
@@ -218,13 +242,13 @@ describe("wechat message entry", () => {
     const [first, retry] = await Promise.all([
       app.inject({
         method: "POST",
-        url: "/wechat",
+        url: signedWechatUrl(),
         headers: { "content-type": "text/xml" },
         payload: wechatXml(content, "text", "retry-msg-1"),
       }),
       app.inject({
         method: "POST",
-        url: "/wechat",
+        url: signedWechatUrl(),
         headers: { "content-type": "text/xml" },
         payload: wechatXml(content, "text", "retry-msg-2"),
       }),
@@ -247,7 +271,7 @@ describe("wechat message entry", () => {
     const firstStarted = performance.now();
     const first = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatXml(payload, "text", "slow-msg-1"),
     });
@@ -261,7 +285,7 @@ describe("wechat message entry", () => {
     const secondStarted = performance.now();
     const second = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatXml(payload, "text", "slow-msg-2"),
     });
@@ -274,7 +298,7 @@ describe("wechat message entry", () => {
     const thirdStarted = performance.now();
     const third = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatXml(payload, "text", "slow-msg-3"),
     });
@@ -293,7 +317,7 @@ describe("wechat message entry", () => {
     const payload = "记：超慢处理 今天我老婆带阿星去公园，阿星很开心。";
     const first = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatXml(payload, "text", "very-slow-msg-1"),
     });
@@ -302,7 +326,7 @@ describe("wechat message entry", () => {
 
     const second = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatXml(payload, "text", "very-slow-msg-2"),
     });
@@ -312,7 +336,7 @@ describe("wechat message entry", () => {
     const thirdStarted = performance.now();
     const third = await app.inject({
       method: "POST",
-      url: "/wechat",
+      url: signedWechatUrl(),
       headers: { "content-type": "text/xml" },
       payload: wechatXml(payload, "text", "very-slow-msg-3"),
     });
