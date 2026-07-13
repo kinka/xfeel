@@ -37,12 +37,13 @@ function planMessage(db: Database, vec: Database, messageId: string, ownerId?: s
     .all({ "@msg": messageId, "@owner": ownerId ?? null }) as Array<{ id: string }>).map(r => r.id);
 
   // conversation_turns：日记/playground turn（id == messageId）或 log 流 user turn（metadata 链接）
+  const turnOwnerFilter = ownerId ? " AND owner_id = @owner" : "";
   const ownerTurns = (db
     .query(
       `SELECT id, owner_id, role, created_at FROM conversation_turns
-       WHERE id = @msg OR json_extract(metadata,'$.pipeline_message_id') = @msg`,
+       WHERE (id = @msg OR json_extract(metadata,'$.pipeline_message_id') = @msg)${turnOwnerFilter}`,
     )
-    .all({ "@msg": messageId }) as Array<{ id: string; owner_id: string; role: string; created_at: string }>);
+    .all({ "@msg": messageId, "@owner": ownerId ?? null }) as Array<{ id: string; owner_id: string; role: string; created_at: string }>);
 
   const turnIds = new Set<string>(ownerTurns.map(t => t.id));
 

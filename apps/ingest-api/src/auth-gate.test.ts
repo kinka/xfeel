@@ -19,13 +19,14 @@ process.env.XFEEL_JWT_SECRET = "auth-gate-test-secret";
 process.env.XFEEL_ADMIN_TOKEN = "admin-secret-token";
 
 const { buildApp } = await import("./server");
-const { closeDB } = await import("../../../packages/db/src/database");
+const { closeDB, getDB } = await import("../../../packages/db/src/database");
+const { claimWebLoginCode } = await import("../../../packages/db/src/web-auth");
 
 /** 跑完整登录流，返回 { token, ownerId }。 */
 async function login(app: Awaited<ReturnType<typeof buildApp>>, openid: string) {
   const start = await app.inject({ method: "POST", url: "/web/login/start" });
   const code = start.json().code as string;
-  await app.inject({ method: "POST", url: "/weixin/message", payload: { from_user_id: openid, text: code } });
+  claimWebLoginCode({ platform: "weixin", external_user_id: openid, code });
   const redeem = await app.inject({ method: "POST", url: "/web/login/redeem", payload: { code } });
   return { token: redeem.json().token as string, ownerId: redeem.json().owner_id as string };
 }
@@ -107,6 +108,11 @@ describe("web JWT auth gate + multi-tenant isolation", () => {
     const res = await app.inject({ method: "GET", url: "/conversation/turns?owner_id=whatever&date=2026-06-22" });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toMatchObject({ error: "unauthorized" });
+  });
+
+  test("retired JSON Weixin endpoint is not publicly reachable", async () => {
+    const res = await app.inject({ method: "POST", url: "/weixin/message", payload: { from_user_id: "spoofed", text: "帮助" } });
+    expect(res.statusCode).toBe(401);
   });
 
   test("login issues a JWT that unlocks the caller's OWN owner (header only)", async () => {
@@ -249,6 +255,48 @@ describe("web JWT auth gate + multi-tenant isolation", () => {
     });
     expect(cross.statusCode).toBe(403);
     expect(cross.json()).toMatchObject({ reason: "owner_scope" });
+  });
+
+  test("isolation: resource ids and scope arrays cannot bypass family ownership", async () => {
+    const a = await login(app, "wx-resource-family-a");
+    const b = await login(app, "wx-resource-family-b");
+    const db = getDB();
+    db.prepare("INSERT INTO memory_events (id, summary, original_text, event_type, user_id) VALUES (?, ?, ?, ?, ?)")
+      .run("foreign-event", "B 家私密事件", "B 家私密事件", "other", b.ownerId);
+    db.prepare("INSERT INTO memory_events (id, summary, original_text, event_type, user_id) VALUES (?, ?, ?, ?, ?)")
+      .run("own-event", "A 家事件", "A 家事件", "other", a.ownerId);
+    db.prepare("INSERT INTO conversation_turns (id, owner_id, role, content, turn_date) VALUES (?, ?, 'user', ?, ?)")
+      .run("foreign-turn", b.ownerId, "B 家私密对话", "2026-06-22");
+    db.prepare("INSERT INTO conversation_turns (id, owner_id, role, content, turn_date) VALUES (?, ?, 'user', ?, ?)")
+      .run("own-turn", a.ownerId, "A 家对话", "2026-06-22");
+    const headers = { authorization: `Bearer ${a.token}` };
+
+    const event = await app.inject({ method: "GET", url: "/events/foreign-event", headers });
+    expect(event.statusCode).toBe(404);
+
+    const recall = await app.inject({
+      method: "POST", url: "/recall", headers,
+      payload: { owner_id: a.ownerId, scope_owner_ids: [b.ownerId], text: "B 家私密事件" },
+    });
+    expect(recall.statusCode).toBe(403);
+    expect(recall.json()).toMatchObject({ reason: "owner_scope" });
+
+    const deletion = await app.inject({
+      method: "POST", url: "/conversation/turns/delete", headers,
+      payload: { turn_id: "foreign-turn" },
+    });
+    expect(deletion.statusCode).toBe(403);
+    expect((db.prepare("SELECT COUNT(*) AS c FROM conversation_turns WHERE id = ?").get("foreign-turn") as { c: number }).c).toBe(1);
+
+    const ownEvent = await app.inject({ method: "GET", url: "/events/own-event", headers });
+    expect(ownEvent.statusCode).toBe(200);
+
+    const ownDeletion = await app.inject({
+      method: "POST", url: "/conversation/turns/delete", headers,
+      payload: { turn_id: "own-turn" },
+    });
+    expect(ownDeletion.statusCode).toBe(200);
+    expect((db.prepare("SELECT COUNT(*) AS c FROM conversation_turns WHERE id = ?").get("own-turn") as { c: number }).c).toBe(0);
   });
 
   test("isolation: global dashboard endpoints are admin-only", async () => {

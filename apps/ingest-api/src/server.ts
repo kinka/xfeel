@@ -434,16 +434,28 @@ export async function buildApp() {
     const { turn_id, message_id, owner_id, user_id } = req.body as { turn_id?: string; message_id?: string; owner_id?: string; user_id?: string };
     try {
       let messageId = message_id?.trim();
+      let resourceOwnerId: string | undefined;
       if (!messageId && turn_id?.trim()) {
-        const turn = getDB().prepare("SELECT id, metadata FROM conversation_turns WHERE id = ?").get(turn_id.trim()) as { id: string; metadata?: string } | undefined;
+        const turn = getDB().prepare("SELECT id, owner_id, metadata FROM conversation_turns WHERE id = ?").get(turn_id.trim()) as { id: string; owner_id?: string; metadata?: string } | undefined;
         if (!turn) return reply.status(404).send({ error: "turn not found" });
+        resourceOwnerId = turn.owner_id?.trim() || undefined;
         let pipelineMessageId: string | undefined;
         try { pipelineMessageId = turn.metadata ? (JSON.parse(turn.metadata).pipeline_message_id as string | undefined) : undefined; } catch { /* ignore */ }
         messageId = pipelineMessageId || turn.id;
       }
       if (!messageId) return reply.status(400).send({ error: "turn_id or message_id is required" });
-      const ownerId = (owner_id || user_id || "").trim() || undefined;
-      const plan = purgeMessage(messageId, { ownerId });
+      const auth = (req as AuthedRequest).auth;
+      if (auth && !auth.admin) {
+        const owners = resourceOwnerId ? [resourceOwnerId] : ownersForPipelineMessage(messageId);
+        if (!owners.length) return reply.status(404).send({ error: "message not found" });
+        if (owners.some(owner => !auth.ownerIds?.has(owner))) {
+          return reply.status(403).send({ error: "forbidden", reason: "owner_scope" });
+        }
+        resourceOwnerId = owners[0];
+      } else if (!resourceOwnerId) {
+        resourceOwnerId = (owner_id || user_id || "").trim() || undefined;
+      }
+      const plan = purgeMessage(messageId, { ownerId: resourceOwnerId });
       return reply.send({ ok: true, deleted: plan });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -686,8 +698,12 @@ export async function buildApp() {
   app.get("/events/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const db = getDB();
-    const row = db.prepare("SELECT * FROM memory_events WHERE id = ?").get(id);
+    const row = db.prepare("SELECT * FROM memory_events WHERE id = ?").get(id) as Record<string, unknown> & { user_id?: string | null } | undefined;
     if (!row) return reply.status(404).send({ error: "not found" });
+    const auth = (req as AuthedRequest).auth;
+    if (auth && !auth.admin && !(row.user_id && auth.ownerIds?.has(row.user_id))) {
+      return reply.status(404).send({ error: "not found" });
+    }
     return reply.send(row);
   });
 
@@ -977,128 +993,6 @@ export async function buildApp() {
       const msg = e instanceof Error ? e.message : String(e);
       app.log.error({ event: "wechat_response", error: safeErrorMessage(e), duration_ms: Date.now() - startedAt }, "wechat_response_error");
       return reply.type("application/xml; charset=utf-8").send(renderWechatTextXml(makeWechatTextResponse(undefined, `处理消息时出错：${msg}`)));
-    }
-  });
-
-  /** POST /weixin/message — JSON 微信入口；和 /wechat 共享同一套身份解析/product loop */
-  app.post("/weixin/message", async (req, reply) => {
-    const startedAt = Date.now();
-    const { text, content, from_user_id, user_id, owner_id, family_id, speaker_profile_id, date, limit, message_id, metadata } = req.body as {
-      text?: string;
-      content?: string;
-      from_user_id?: string;
-      user_id?: string;
-      owner_id?: string;
-      family_id?: string;
-      speaker_profile_id?: string;
-      date?: string;
-      limit?: number;
-      message_id?: string;
-      metadata?: Record<string, unknown>;
-    };
-    const messageText = text ?? content ?? "";
-    if (!messageText.trim()) return reply.status(400).send({ error: "text is required" });
-    const externalUserId = from_user_id ?? user_id ?? owner_id;
-    if (!externalUserId?.trim() && !speaker_profile_id?.trim()) {
-      return reply.status(400).send({ error: "from_user_id or speaker_profile_id is required" });
-    }
-    const logResponse = (body: Record<string, unknown>) => {
-      const identity = body.identity && typeof body.identity === "object" ? body.identity as Record<string, unknown> : {};
-      const resultCounts = summarizeProductMessageForLog(body.result);
-      req.log.info({
-        event: "weixin_json_response",
-        message_id,
-        external_user_hash: hashId(externalUserId),
-        external_user_mask: maskId(externalUserId),
-        identity_bound: identity.bound,
-        speaker_label: identity.speaker_label,
-        intent: body.intent,
-        duration_ms: Date.now() - startedAt,
-        ...resultCounts,
-        ...textLogFieldsRedactingValues("reply", body.reply, [externalUserId]),
-      }, "weixin_json_response");
-      return reply.send(body);
-    };
-
-    try {
-      req.log.info({
-        event: "weixin_json_inbound",
-        message_id,
-        external_user_hash: hashId(externalUserId),
-        external_user_mask: maskId(externalUserId),
-        owner_hash: hashId(owner_id),
-        family_id_hash: hashId(family_id),
-        speaker_profile_hash: hashId(speaker_profile_id),
-        metadata_keys: metadata ? Object.keys(metadata).slice(0, 12) : [],
-        ...textLogFields("content", messageText),
-      }, "weixin_json_inbound");
-      const account = handleAccountCommand({ platform: "weixin", external_user_id: externalUserId, text: messageText });
-      if (account.matched) {
-        const identity = resolveMessageIdentity({ user_id: externalUserId, platform: "weixin" });
-        return logResponse({
-          platform: "weixin",
-          from_user_id: externalUserId,
-          message_id,
-          reply: account.reply,
-          intent: account.intent,
-          result: account.summary ?? null,
-          identity: identityResponse(identity, externalUserId),
-          metadata,
-        });
-      }
-
-      const identity = resolveMessageIdentity({
-        owner_id,
-        user_id: externalUserId,
-        family_id,
-        speaker_profile_id,
-        platform: "weixin",
-      }, { autoProvision: true });
-      if (!identity.bound) {
-        return logResponse({
-          platform: "weixin",
-          from_user_id: externalUserId,
-          message_id,
-          reply: buildUnboundWeixinReply(externalUserId),
-          intent: "bind_required",
-          result: null,
-          identity: identityResponse(identity, externalUserId),
-          metadata,
-        });
-      }
-
-      const onboardingHint = buildOnboardingHint(identity);
-      const result = await handleProductMessage({
-        text: messageText,
-        owner_id: identity.ownerId,
-        user_id: identity.ownerId,
-        scope_owner_ids: identity.scopeOwnerIds,
-        date,
-        limit,
-        speaker_id: identity.speakerId,
-        speaker_label: identity.speakerLabel,
-        aliasContext: identity.aliasContext,
-      });
-      return logResponse({
-        platform: "weixin",
-        from_user_id: externalUserId,
-        message_id,
-        reply: appendCareFollowUp(appendHint(result.reply, onboardingHint) ?? result.reply, identity.ownerId, result.intent),
-        intent: result.intent,
-        result,
-        identity: identityResponse(identity, externalUserId),
-        metadata,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      req.log.error({
-        event: "weixin_json_response",
-        message_id,
-        external_user_hash: hashId(externalUserId),
-        duration_ms: Date.now() - startedAt,
-        error: safeErrorMessage(e),
-      }, "weixin_json_response_error");
-      return reply.status(500).send({ error: msg });
     }
   });
 
@@ -1638,48 +1532,6 @@ function resolveMessageIdentity(input: MessageIdentityInput, opts: { autoProvisi
     externalUserId,
     platform,
   };
-}
-
-function identityResponse(identity: ReturnType<typeof resolveMessageIdentity>, externalUserId?: string) {
-  return {
-    owner_id: identity.ownerId,
-    speaker_profile_id: identity.speakerId,
-    speaker_label: identity.speakerLabel,
-    family_id: identity.aliasContext?.familyId,
-    alias_context_found: Boolean(identity.aliasContext),
-    bound: identity.bound,
-    external_user_id: externalUserId || identity.externalUserId,
-  };
-}
-
-function summarizeProductMessageForLog(result: unknown): Record<string, unknown> {
-  const product = asRecord(result);
-  if (!product) return {};
-  const nestedResult = asRecord(product.result);
-  const pipeline = getPipelineForLog(product);
-  const directEvents = Array.isArray(product.events) ? product.events.length : undefined;
-  const chatRecalled = Array.isArray(nestedResult?.recalled) ? nestedResult.recalled.length : undefined;
-  const contextualRecalled = Array.isArray(asRecord(nestedResult?.context)?.recalled)
-    ? (asRecord(nestedResult?.context)?.recalled as unknown[]).length
-    : undefined;
-  const archives = Array.isArray(nestedResult?.archives) ? nestedResult.archives : undefined;
-
-  return {
-    stored_count: typeof pipeline?.stored === "number" ? pipeline.stored : undefined,
-    events_count: Array.isArray(pipeline?.events) ? pipeline.events.length : directEvents,
-    recalled_count: contextualRecalled ?? chatRecalled ?? directEvents,
-    archive_count: archives?.length,
-    deleted_event_count: typeof nestedResult?.deleted_event_count === "number" ? nestedResult.deleted_event_count : undefined,
-    corrected: typeof nestedResult?.corrected === "boolean" ? nestedResult.corrected : undefined,
-  };
-}
-
-function getPipelineForLog(product: Record<string, unknown>) {
-  const nestedResult = asRecord(product.result);
-  if (asRecord(nestedResult?.pipeline)) return asRecord(nestedResult?.pipeline);
-  const contextualPipeline = asRecord(asRecord(nestedResult?.result)?.pipeline);
-  if (contextualPipeline) return contextualPipeline;
-  return undefined;
 }
 
 interface PlaygroundPipelineDiagnostic {
@@ -2674,7 +2526,6 @@ async function main() {
   console.log(`   POST /conversation/chat — 对话并召回记忆`);
   console.log(`   POST /conversation/log  — 记录日志并上下文回应`);
   console.log(`   GET/POST /wechat — 原 xfeel 微信公众号入口（XML 兼容）`);
-  console.log(`   POST /weixin/message — JSON 微信消息入口（绑定 speaker/profile）`);
   console.log(`   GET  /conversation/turns — 对话列表`);
   console.log(`   GET  /app — 家庭记忆用户端（移动端优先）`);
   console.log(`   GET  /memories/day — 某天长期记忆（历史回放兜底）`);
@@ -2733,7 +2584,7 @@ function isPublicPath(method: string, path: string): boolean {
     if (path === "/web/login/status") return true;                       // 登录轮询
   }
   if (method === "POST") {
-    if (path === "/wechat" || path === "/weixin/message") return true; // 公众号服务器回调，带不了我们的 JWT
+    if (path === "/wechat") return true; // 公众号服务器回调，带不了我们的 JWT
     if (path === "/web/login/start" || path === "/web/login/redeem") return true;
   }
   return false;
@@ -2800,10 +2651,26 @@ function collectOwnerCandidates(req: { query?: unknown; body?: unknown }): strin
       const v = obj[key];
       if (typeof v === "string" && v.trim()) out.push(v.trim());
     }
+    const scope = obj.scope_owner_ids;
+    if (Array.isArray(scope)) {
+      for (const owner of scope) if (typeof owner === "string" && owner.trim()) out.push(owner.trim());
+    }
   };
   pick(req.query);
   pick(req.body);
   return out;
+}
+
+/** 找出一个 pipeline message 实际涉及的 owner，供按资源 ID 删除时做授权。 */
+function ownersForPipelineMessage(messageId: string): string[] {
+  const db = getDB();
+  const rows = db.prepare(`
+    SELECT owner_id AS owner FROM conversation_turns
+    WHERE id = ? OR json_extract(metadata, '$.pipeline_message_id') = ?
+    UNION
+    SELECT user_id AS owner FROM memory_events WHERE raw_message_id = ?
+  `).all(messageId, messageId, messageId) as Array<{ owner?: string | null }>;
+  return [...new Set(rows.map(row => row.owner?.trim()).filter((owner): owner is string => Boolean(owner)))];
 }
 
 /**

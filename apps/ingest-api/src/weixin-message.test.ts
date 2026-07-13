@@ -33,8 +33,6 @@ const { closeDB, getDB } = await import("../../../packages/db/src/database");
 
 const WEIXIN_USER = "wx-dad";
 const MEMORY_OWNER = "demo-dad-owner";
-const DATE = "2026-06-01";
-
 function entitiesFromRows(rows: Array<{ entities: string }>) {
   return new Set(rows.flatMap(row => JSON.parse(row.entities) as string[]));
 }
@@ -59,7 +57,7 @@ function validWechatSignature(timestamp: string, nonce: string, token = "xfeel")
   return crypto.createHash("sha1").update([token, timestamp, nonce].sort().join("")).digest("hex");
 }
 
-describe("weixin/wechat message entry", () => {
+describe("wechat message entry", () => {
   let dbPath = "";
   let app: Awaited<ReturnType<typeof buildApp>>;
 
@@ -109,73 +107,6 @@ describe("weixin/wechat message entry", () => {
     expect(onboarding.statusCode).toBe(200);
   }
 
-  test("auto-provisions a fresh Weixin user and records input instead of blocking on bind", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/weixin/message",
-      payload: { from_user_id: "wx-new", text: "记：今天阿星夜醒。", date: DATE },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as { intent: string; reply: string; identity: { bound: boolean; alias_context_found: boolean; owner_id: string } };
-    // 不再硬拦截：先收下并处理，身份自动开户
-    expect(body.intent).not.toBe("bind_required");
-    expect(body.identity.bound).toBe(true);
-    expect(body.identity.alias_context_found).toBe(true);
-    // owner 池是自动建的家庭，而不是裸 openid
-    expect(body.identity.owner_id).not.toBe("wx-new");
-    // 附带一条轻提醒，引导确认身份
-    expect(body.reply).toContain("我是爸爸");
-    const eventCount = getDB().prepare("SELECT COUNT(*) AS c FROM memory_events WHERE user_id = ?").get(body.identity.owner_id) as { c: number };
-    expect(eventCount.c).toBeGreaterThan(0);
-  });
-
-  test("self-declares as 爸爸 then keeps a stable memory owner without re-nagging", async () => {
-    const bind = await app.inject({
-      method: "POST",
-      url: "/weixin/message",
-      payload: { from_user_id: "wx-new", text: "绑定爸爸" },
-    });
-    expect(bind.statusCode).toBe(200);
-    const bindBody = JSON.parse(bind.body) as { intent: string; identity: { bound: boolean; owner_id: string; speaker_label: string } };
-    expect(bindBody.intent).toBe("bind");
-    expect(bindBody.identity.bound).toBe(true);
-    expect(bindBody.identity.speaker_label).toBe("爸爸");
-    const owner = bindBody.identity.owner_id;
-    expect(owner).toBeTruthy();
-
-    const res = await app.inject({
-      method: "POST",
-      url: "/weixin/message",
-      payload: { from_user_id: "wx-new", text: "记：今天去公园。", date: DATE },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as { reply?: string; identity: { bound: boolean; owner_id: string; speaker_label: string }; intent: string };
-    expect(body.intent).toBe("log");
-    expect(body.identity.bound).toBe(true);
-    // owner 池在「确认身份」前后保持一致 → 之前记的内容不会丢
-    expect(body.identity.owner_id).toBe(owner);
-    expect(body.identity.speaker_label).toBe("爸爸");
-    // 已确认身份后不再附带新手提醒
-    expect(body.reply ?? "").not.toContain("我是爸爸");
-    const eventCount = getDB().prepare("SELECT COUNT(*) AS c FROM memory_events WHERE user_id = ?").get(owner) as { c: number };
-    expect(eventCount.c).toBeGreaterThan(0);
-  });
-
-  test("replies with usage help on 帮助 without entering the memory pipeline", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/weixin/message",
-      payload: { from_user_id: "wx-help", text: "帮助" },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as { intent: string; reply: string };
-    expect(body.intent).toBe("help");
-    expect(body.reply).toContain("邀请");
-    expect(body.reply).toContain("我是爸爸");
-    // 不应产生任何记录
-    expect((getDB().prepare("SELECT COUNT(*) AS c FROM speaker_profiles WHERE external_user_id = ?").get("wx-help") as { c: number }).c).toBe(0);
-  });
-
   test("greets a new follower with help on /wechat subscribe event", async () => {
     const xml = `<xml>
 <ToUserName><![CDATA[gh_xfeel]]></ToUserName>
@@ -188,39 +119,6 @@ describe("weixin/wechat message entry", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain("欢迎关注");
     expect(res.body).toContain("邀请");
-  });
-
-  test("invite + join keeps each Weixin user in their own per-person memory pool", async () => {
-    const post = (from: string, text: string) =>
-      app.inject({ method: "POST", url: "/weixin/message", payload: { from_user_id: from, text, date: DATE } });
-
-    // 爸爸确认身份并记一条，拿到爸爸自己的 owner 池
-    await post("wx-dad", "绑定爸爸");
-    const dadLog = JSON.parse((await post("wx-dad", "记：今天爸爸修好了水龙头。")).body) as { identity: { owner_id: string } };
-    const dadOwner = dadLog.identity.owner_id;
-
-    // 爸爸发起邀请
-    const inviteBody = JSON.parse((await post("wx-dad", "邀请")).body) as { intent: string; result: { code: string } };
-    expect(inviteBody.intent).toBe("invite");
-    expect(inviteBody.result.code).toMatch(/^\d{6}$/);
-
-    // 妈妈先各自记一条，再凭码加入
-    await post("wx-mom", "绑定妈妈");
-    await post("wx-mom", "记：妈妈昨天买了奶粉。");
-    const joinBody = JSON.parse((await post("wx-mom", `加入 ${inviteBody.result.code}`)).body) as { intent: string };
-    expect(joinBody.intent).toBe("join");
-
-    // 妈妈加入同一个家庭，但 owner 池仍是她自己的（不并入爸爸的池）
-    const momAfter = JSON.parse((await post("wx-mom", "记：今天天气不错。")).body) as { identity: { owner_id: string; speaker_label: string } };
-    expect(momAfter.identity.speaker_label).toBe("妈妈");
-    const momOwner = momAfter.identity.owner_id;
-    expect(momOwner).not.toBe(dadOwner);
-
-    // 妈妈加入前后记的都在妈妈自己的池；爸爸的池只有爸爸记的
-    const momSummaries = getDB().prepare("SELECT summary FROM memory_events WHERE user_id = ?").all(momOwner) as Array<{ summary: string }>;
-    expect(momSummaries.length).toBeGreaterThanOrEqual(2);
-    const dadCount = getDB().prepare("SELECT COUNT(*) AS c FROM memory_events WHERE user_id = ?").get(dadOwner) as { c: number };
-    expect(dadCount.c).toBe(1);
   });
 
   test("web login: start → wechat claims passphrase → redeem 1y token", async () => {
@@ -236,10 +134,12 @@ describe("weixin/wechat message entry", () => {
     expect(JSON.parse(early.body).status).toBe("pending");
 
     // 用户在公众号回复暗号 → 认领
-    const claim = await app.inject({ method: "POST", url: "/weixin/message", payload: { from_user_id: "wx-web", text: code } });
-    const claimBody = JSON.parse(claim.body) as { intent: string; reply: string };
-    expect(claimBody.intent).toBe("web_login");
-    expect(claimBody.reply).toContain("已确认");
+    const claim = await app.inject({
+      method: "POST", url: "/wechat", headers: { "content-type": "text/xml" },
+      payload: wechatXml(code, "text", "web-login-claim"),
+    });
+    expect(claim.statusCode).toBe(200);
+    expect(claim.body).toContain("已确认");
 
     // 网页轮询看到 claimed
     const status = await app.inject({ method: "GET", url: `/web/login/status?code=${encodeURIComponent(code)}` });
@@ -257,59 +157,6 @@ describe("weixin/wechat message entry", () => {
     const again = await app.inject({ method: "POST", url: "/web/login/redeem", payload: { code } });
     expect(again.statusCode).toBe(409);
     expect(JSON.parse(again.body).status).toBe("used");
-  });
-
-  test("binds a Weixin JSON user to speaker profile and applies alias context for log/correction", async () => {
-    await onboardWeixinSpeaker();
-
-    const log = await app.inject({
-      method: "POST",
-      url: "/weixin/message",
-      payload: {
-        from_user_id: WEIXIN_USER,
-        date: DATE,
-        text: "记：今天我老婆带阿星出门，阿星很开心。",
-      },
-    });
-    expect(log.statusCode).toBe(200);
-    const logBody = JSON.parse(log.body) as { identity: { alias_context_found: boolean; speaker_label: string }; intent: string };
-    expect(logBody.intent).toBe("log");
-    expect(logBody.identity.alias_context_found).toBe(true);
-    expect(logBody.identity.speaker_label).toBe("爸爸");
-
-    let rows = getDB().prepare("SELECT entities, original_text FROM memory_events WHERE user_id = ?").all(MEMORY_OWNER) as Array<{
-      entities: string;
-      original_text: string;
-    }>;
-    let entitySet = entitiesFromRows(rows);
-    expect(entitySet).toContain("妈妈");
-    expect(entitySet).toContain("小星");
-    expect(entitySet).not.toContain("小禾");
-
-    const correction = await app.inject({
-      method: "POST",
-      url: "/weixin/message",
-      payload: {
-        from_user_id: WEIXIN_USER,
-        date: DATE,
-        content: "改：今天我老婆带阿禾出门，阿禾很开心。",
-      },
-    });
-    expect(correction.statusCode).toBe(200);
-    const correctionBody = JSON.parse(correction.body) as { intent: string; result: { result: { corrected: boolean } } };
-    expect(correctionBody.intent).toBe("correct");
-    expect(correctionBody.result.result.corrected).toBe(true);
-
-    rows = getDB().prepare("SELECT entities, original_text FROM memory_events WHERE user_id = ?").all(MEMORY_OWNER) as Array<{
-      entities: string;
-      original_text: string;
-    }>;
-    expect(rows).toHaveLength(1);
-    entitySet = entitiesFromRows(rows);
-    expect(entitySet).toContain("妈妈");
-    expect(entitySet).toContain("小禾");
-    expect(entitySet).not.toContain("小星");
-    expect(rows.every(row => !row.original_text.includes("阿星"))).toBe(true);
   });
 
   test("keeps original /wechat verification path compatible", async () => {

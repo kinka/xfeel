@@ -15,8 +15,8 @@ xfeel 的微信通道让家人直接在公众号对话里记录和回忆。本�
 
 | 配置项 | 填写 |
 |---|---|
-| 服务器地址 URL | `https://your-domain.example/weixin/message` |
-| Token | 与环境变量 `WECHAT_TOKEN` 一致（默认 `xfeel`，建议改随机串） |
+| 服务器地址 URL | `https://your-domain.example/wechat` |
+| Token | 与环境变量 `WECHAT_TOKEN` 一致（必须使用随机串） |
 | 消息加解密方式 | 明文模式 |
 
 环境变量（参见 `.env.example`）：
