@@ -1,6 +1,7 @@
 {
   "name": "xfeel",
   "private": true,
+  "homepage": "https://xfeel.today",
   "license": "MIT",
   "type": "module",
   "scripts": {

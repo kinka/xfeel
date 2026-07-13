@@ -1,6 +1,6 @@
 # xfeel 家庭记忆助手
 
-[English](README.en.md)
+[官网](https://xfeel.today) · [English](README.en.md)
 
 xfeel 是一个面向家庭的长期记忆系统：家人可以像聊天一样记录孩子成长、日常照护、情绪变化和重要片段，系统会把零散消息沉淀成可检索、可回顾、可继续对话的结构化记忆。
 

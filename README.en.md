@@ -1,6 +1,6 @@
 # xfeel — Family Memory Assistant
 
-[中文文档](README.md)
+[Website](https://xfeel.today) · [中文文档](README.md)
 
 xfeel is a self-hostable, long-term memory system for families: members chat naturally to log child milestones, daily care, moods, and meaningful moments — and the system distills scattered messages into structured, searchable, revisitable memories you can keep talking to.
 
