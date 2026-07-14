@@ -42,6 +42,20 @@ export function loadUnderstandingContext(input: {
     if (parts.length) sections.push(`【对这个人的长期理解（假设/底色，非事实）】\n${parts.join("\n")}`);
   }
 
+  // 首选叙事 + 它自己攒下的微证据：用户当初自己说出的那句解释，配上后来真实发生的小事。
+  // 这是智慧干预的收口——引用的是 ta 自己的话和 ta 自己的事，不是我们的鼓励。
+  const narratives = (longTerm?.content?.preferredNarratives || []).filter(n => n?.statement);
+  if (narratives.length) {
+    const lines = narratives.slice(0, 2).map(n => {
+      const evidence = (n.evidence || []).slice(-2).map(e => `${e.date} ${e.detail}`).join("；");
+      return `- ta 自己说过：“${n.statement}”${evidence ? `\n  后来确实发生过：${evidence}` : ""}`;
+    });
+    sections.push(
+      `【ta 自己给过的解释（不是我们的结论）】\n${lines.join("\n")}\n` +
+      "只在 ta 又陷进同一种自我否定、且时机自然时，才用 ta 自己的原话和上面这些真实小事轻轻提一句；不要说教、不要当口号反复念。",
+    );
+  }
+
   if (recent?.content) {
     const c = recent.content;
     const parts: string[] = [];

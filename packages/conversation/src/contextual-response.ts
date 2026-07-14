@@ -11,6 +11,9 @@ import { recordConversationTurn, type ConversationTurn } from "./conversation";
 import { buildWeakEntitySet, isContextuallyRelevant } from "./relevance-gate";
 import { loadSessionContext } from "./session-context";
 import { loadUnderstandingContext } from "./memory/profile-context";
+import { loadWisdomContext } from "./wisdom/wisdom-context";
+import { maybeCaptureNarrative } from "./wisdom/narrative-capture";
+import { getLastAssistantTurnId, recordIntervention } from "./wisdom/lever-store";
 
 export interface LogWithContextInput {
   text: string;
@@ -110,14 +113,29 @@ export async function logWithContextualReply(input: LogWithContextInput): Promis
   // 支撑围绕记录意图展开的多轮问答。
   const session = loadSessionContext({ owner_id: ownerId, date: turnDate, maxTurns: 8, excludeTurnId: userTurn.id });
   const understanding = loadUnderstandingContext({ owner_id: ownerId });
+  const recentDialogue = formatRecentDialogue(session.recentTurns);
+
+  // 智慧干预：日志路径同样先回收上一句反问的答案，再判断这条要不要把解释权交回给 ta。
+  const previousAssistantTurnId = getLastAssistantTurnId(ownerId);
+  await maybeCaptureNarrative({ owner_id: ownerId, text, date: turnDate, previousAssistantTurnId });
+  const wisdom = await loadWisdomContext({
+    owner_id: ownerId,
+    text,
+    date: turnDate,
+    recentDialogue,
+    turn_id: userTurn.id,
+    scope_owner_ids: input.scope_owner_ids,
+  });
+
   const reply = await buildContextualReply({
     text,
     currentEventSummaries,
     recalled,
     signals,
-    recentDialogue: formatRecentDialogue(session.recentTurns),
+    recentDialogue,
     ambientText: session.ambient?.text,
     understandingText: understanding.text,
+    wisdomText: wisdom.text,
     aliasContext: input.aliasContext,
   });
 
@@ -141,8 +159,24 @@ export async function logWithContextualReply(input: LogWithContextInput): Promis
       current_event_ids: pipeline.events.map(event => event.id).filter(Boolean),
       recalled_event_ids: recalled.map(event => event.id),
       signals,
+      ...(wisdom.intervene ? { wisdom: { lever: wisdom.lever, asked: true } } : {}),
     },
   });
+
+  if (wisdom.intervene && wisdom.lever && ownerId) {
+    try {
+      recordIntervention({
+        ownerId,
+        lever: wisdom.lever,
+        question: reply,
+        evidence: wisdom.counterEvidence,
+        date: turnDate,
+        askedTurnId: assistantTurn.id,
+      });
+    } catch {
+      // 落库失败不影响已发出的回复：最坏只是这次没形成闭环。
+    }
+  }
 
   return {
     mode: "log_with_contextual_reply",
@@ -277,6 +311,8 @@ async function buildContextualReply(input: {
   recentDialogue?: string;
   ambientText?: string;
   understandingText?: string;
+  /** 智慧干预提示块：命中时要求"先接住、再把解释权交回给 ta"，未命中为空串。 */
+  wisdomText?: string;
   aliasContext?: AliasContext;
 }): Promise<string> {
   try {
@@ -295,6 +331,7 @@ async function buildContextualReply(input: {
     const raw = await getLLM(roleLLMConfig("reply")).chat(
       [
         input.understandingText ? `${input.understandingText}\n` : "",
+        input.wisdomText ? `${input.wisdomText}\n` : "",
         `当前日志：${input.text}`,
         "",
         `本次抽取：\n${currentLines || "暂无结构化事件"}`,

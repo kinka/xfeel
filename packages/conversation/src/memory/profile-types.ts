@@ -14,6 +14,8 @@
  *   - 理解有生命周期：observed/inferred、status、confidence 拆解、lastConfirmedAt。
  */
 
+import type { PreferredNarrative } from "../wisdom/lever-types";
+
 export type ProfileLayer = "long_term" | "recent";
 
 export type UnderstandingCategory =
@@ -70,6 +72,11 @@ export interface LongTermProfileContent {
   addressBook: AddressEntry[];
   openQuestions: OpenQuestion[];
   narrative?: string; // 一段“这个人是谁”的自然语言画像，便于直接注入
+  /**
+   * 首选叙事：用户在智慧干预中**自己说出**的、对自己处境更宽的解释（见 wisdom/）。
+   * 与 understandings 不同，它不是归纳产物，离线重建不得生成或覆盖它。
+   */
+  preferredNarratives?: PreferredNarrative[];
 }
 
 export interface OpenThread {

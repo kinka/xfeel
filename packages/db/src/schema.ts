@@ -206,7 +206,45 @@ export function initSchema(db: Database): MemoryEventsFtsStatus {
   ensureFamilyOnboardingSchema(db);
   ensureMediaSchema(db);
   ensureCareSchema(db);
+  ensureWisdomSchema(db);
   return ensureMemoryEventsFts(db);
+}
+
+/**
+ * 智慧干预（wise interventions）：认知杠杆命中与干预记录。
+ *
+ * construal_levers 只记"这句话里出现了哪种消极解释方式"（一次命中=一行，带原话片段可回溯），
+ * 不做任何判断；是否干预由在线闸门按"滚动窗口内反复出现"决定——单次低落不干预。
+ * wisdom_interventions 记录每次反问（saying-is-believing），用于冷却期与"用户是否自己说出了新解释"的回收。
+ */
+export function ensureWisdomSchema(db: Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS construal_levers (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      lever TEXT NOT NULL CHECK(lever IN ('belonging_uncertainty', 'fixed_attribution', 'hostile_attribution', 'self_continuity_threat')),
+      confidence REAL NOT NULL DEFAULT 0,
+      quote TEXT NOT NULL DEFAULT '',
+      turn_id TEXT,
+      event_date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_construal_levers_owner_date ON construal_levers(owner_id, event_date);
+
+    CREATE TABLE IF NOT EXISTS wisdom_interventions (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      lever TEXT NOT NULL,
+      asked_turn_id TEXT,
+      question TEXT NOT NULL DEFAULT '',
+      evidence TEXT NOT NULL DEFAULT '[]',
+      narrative TEXT,
+      narrative_captured_at TEXT,
+      event_date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_wisdom_interventions_owner_date ON wisdom_interventions(owner_id, event_date);
+  `);
 }
 
 /**

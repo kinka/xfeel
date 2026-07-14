@@ -12,6 +12,7 @@ data/*
 data/eval/*
 !data/eval/recall-real-queries.json
 !data/eval/precision-real-queries.json
+!data/eval/wisdom-cases.json
 *.db
 *.db-shm
 *.db-wal

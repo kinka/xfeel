@@ -2,6 +2,7 @@ import { getDB, closeDB } from "../packages/db/src/database";
 import { initSchema } from "../packages/db/src/schema";
 import { runDailyArchive } from "../packages/archive/src/daily";
 import { buildMemoryProfile, type ProfileBuildMode } from "../packages/conversation/src/memory/profile-builder";
+import { buildNarrativeEvidence } from "../packages/conversation/src/wisdom/narrative-evidence";
 import { backupXfeelDb } from "./backup-db";
 
 const DEFAULT_HOUR = 3;
@@ -71,6 +72,19 @@ async function runNightlyArchive() {
       profiles.push({ owner_id: ownerId, error: (error as Error).message });
     }
   }
+
+  // 递归证据链：给用户自己说出的那句解释，挂上他后来真实发生的小事（跑在画像重建之后，
+  // 因为画像写回会保留 preferredNarratives，顺序反了会丢掉这一轮追加的证据）。
+  const narrativeEvidence: Array<Record<string, unknown>> = [];
+  for (const ownerId of profiledOwners) {
+    try {
+      const built = await buildNarrativeEvidence({ owner_id: ownerId, date });
+      if (built.narratives > 0) narrativeEvidence.push({ owner_id: ownerId, ...built });
+    } catch (error) {
+      console.error(`[xfeel-nightly] narrative evidence failed owner=${ownerId}`, error);
+    }
+  }
+  if (narrativeEvidence.length) console.log(`[xfeel-nightly] narrative evidence`, narrativeEvidence);
 
   const finishedAt = new Date().toISOString();
   let backup: Record<string, unknown> | undefined;

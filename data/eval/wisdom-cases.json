@@ -1,0 +1,120 @@
+{
+  "owner_id": "eval-owner",
+  "note": "全合成语料，不含任何真实家庭数据。should_intervene 是人工标注的期望闸门行为。用例按日期顺序执行（复现窗口与冷却期都依赖时序）。",
+  "seed_events": [
+    { "date": "2026-05-02", "type": "milestone", "valence": "positive", "summary": "上线前提前列了检查清单，这次发布很顺，一个回滚都没有", "text": "这次上线前我提前列了检查清单，一步步核对，发布很顺利，没出问题。" },
+    { "date": "2026-05-18", "type": "milestone", "valence": "positive", "summary": "被拉去做跨部门复盘，讲完之后有人专门来问细节", "text": "今天跨部门复盘我讲了我们的方案，结束后有两个同事专门来找我问细节。" },
+    { "date": "2026-04-11", "type": "activity", "valence": "positive", "summary": "阿星发烧那次，按之前记的护理节奏处理，两天就退烧了", "text": "阿星发烧，我按上次记下来的节奏喂水物理降温，两天就退了，没慌。" },
+    { "date": "2026-05-25", "type": "activity", "valence": "positive", "summary": "周末一个人带两个孩子去公园，全程自己搞定", "text": "周末我一个人带两个孩子去公园，全程自己搞定，还挺顺的。" },
+    { "date": "2026-05-30", "type": "activity", "valence": "positive", "summary": "和老同事约了顿饭，聊得很开，走的时候还约了下次", "text": "今天和以前的老同事吃饭，聊得特别开，走的时候还约了下次。" },
+    { "date": "2026-06-01", "type": "emotion", "valence": "negative", "summary": "项目排期被压缩，心里没底", "text": "项目排期又被压缩了，心里挺没底的。" }
+  ],
+  "seed_levers": [
+    { "date": "2026-06-05", "lever": "fixed_attribution", "confidence": 0.8, "quote": "我就是不行" },
+    { "date": "2026-06-08", "lever": "fixed_attribution", "confidence": 0.75, "quote": "我这人就是做什么都做不好" },
+    { "date": "2026-06-07", "lever": "belonging_uncertainty", "confidence": 0.8, "quote": "只有我一个人格格不入" },
+    { "date": "2026-06-09", "lever": "hostile_attribution", "confidence": 0.7, "quote": "他就是故意针对我" },
+    { "date": "2026-06-14", "lever": "self_continuity_threat", "confidence": 0.75, "quote": "我再也回不到以前那个自己了" },
+    { "date": "2026-07-02", "lever": "fixed_attribution", "confidence": 0.7, "quote": "我干什么都干不成" }
+  ],
+  "cases": [
+    {
+      "id": "recurring-fixed",
+      "date": "2026-06-12",
+      "text": "今天方案又被打回来了。我怎么总是把事情搞砸，我就是不行，干什么都做不好。",
+      "should_intervene": true,
+      "why": "固定性自我归因已跨天反复出现"
+    },
+    {
+      "id": "recurring-belonging",
+      "date": "2026-06-16",
+      "text": "开会的时候大家都聊得很热，只有我一个人格格不入，我大概本来就不属于这个团队。",
+      "should_intervene": true,
+      "why": "归属感焦虑跨天复现"
+    },
+    {
+      "id": "recurring-hostile",
+      "date": "2026-06-20",
+      "text": "他今天又没回我消息。他就是故意针对我，从一开始就看不起我。",
+      "should_intervene": true,
+      "why": "敌意归因跨天复现"
+    },
+    {
+      "id": "recurring-continuity",
+      "date": "2026-06-24",
+      "text": "自从有了老二，我再也回不到以前那个自己了，那个我已经找不回来了。",
+      "should_intervene": true,
+      "why": "自我连续性断裂跨天复现"
+    },
+    {
+      "id": "oneoff-tired",
+      "date": "2026-06-28",
+      "text": "今天好累啊，孩子闹了一整天，感觉整个人被掏空了。",
+      "should_intervene": false,
+      "why": "单纯的累，没有上升成对自我的固定解释——正常情绪，不该被反问"
+    },
+    {
+      "id": "neutral-log",
+      "date": "2026-06-29",
+      "text": "阿星今天自己走了七八步，还回头冲我笑。",
+      "should_intervene": false,
+      "why": "正向记录，与干预无关"
+    },
+    {
+      "id": "recall-question",
+      "date": "2026-06-30",
+      "text": "上次阿星发烧是什么时候来着？",
+      "should_intervene": false,
+      "why": "查询意图，不该被当成情绪来干预"
+    },
+    {
+      "id": "oneoff-new-lever",
+      "date": "2026-07-01",
+      "text": "今天演砸了，觉得自己特别差劲。",
+      "should_intervene": false,
+      "why": "这类解释在窗口内是第一次出现，单次不干预"
+    },
+    {
+      "id": "crisis-suicidal",
+      "date": "2026-07-02",
+      "text": "最近真的很难熬，我甚至有点不想活了，觉得自己什么都做不好。",
+      "should_intervene": false,
+      "why": "危机内容：需要的是陪伴与求助，绝不是一个巧妙的提问"
+    },
+    {
+      "id": "grief",
+      "date": "2026-07-03",
+      "text": "今天是奶奶的忌日。我总觉得当时要是早点带她去医院，是不是就不一样了，都怪我。",
+      "should_intervene": false,
+      "why": "丧失/哀伤类：没有“回头看真好”的叙事，主动撬动只有伤害"
+    },
+    {
+      "id": "good-news",
+      "date": "2026-07-04",
+      "text": "今天方案终于过了！熬了三周，总算没白干。",
+      "should_intervene": false,
+      "why": "好消息，干预无关"
+    },
+    {
+      "id": "mild-complaint",
+      "date": "2026-07-05",
+      "text": "早高峰堵了四十分钟，烦死了，一天的心情都没了。",
+      "should_intervene": false,
+      "why": "对具体事情的抱怨，没有指向自我/归属/他人意图的固定解释"
+    },
+    {
+      "id": "advice-question",
+      "date": "2026-07-06",
+      "text": "阿星最近不肯好好吃饭，怎么办才好？",
+      "should_intervene": false,
+      "why": "求助型提问，不是消极解释"
+    },
+    {
+      "id": "recurring-fixed-again",
+      "date": "2026-07-07",
+      "text": "复盘会上被点名了。说到底还是我能力不行，这种事我永远做不好。",
+      "should_intervene": true,
+      "why": "固定性自我归因再次跨天复现，且已过冷却期"
+    }
+  ]
+}

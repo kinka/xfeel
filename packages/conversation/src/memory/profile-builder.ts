@@ -175,12 +175,16 @@ async function buildLongTermUnderstanding(
     return { built: false, reason: "no supported understandings produced", mode: incremental ? "incremental" : "full" };
   }
 
+  // 首选叙事是用户自己说出的话，不是归纳产物：full 模式从零滚动会把它冲掉，这里原样带回。
+  // 归纳期间用户可能刚好被回收到一条新叙事，所以在写回前重读一次，而不是用开头那份快照。
+  const latestNarratives = getLongTermProfile(ownerId)?.content?.preferredNarratives || [];
+  const content: LongTermProfileContent = { ...acc, preferredNarratives: latestNarratives };
   upsertProfile({
-    ownerId, layer: "long_term", content: acc,
+    ownerId, layer: "long_term", content,
     coversFrom, coversTo: date,
     evidenceCount: baseEvidence + archives.length, sourceModel: ROLE_MODELS.reply,
   });
-  return { built: true, content: acc, mode: incremental ? "incremental" : "full" };
+  return { built: true, content, mode: incremental ? "incremental" : "full" };
 }
 
 /** 滚动精炼(refine)的单批：在 prior 理解之上、用这批归档更新出完整理解集合。失败/空则保留 prior。 */

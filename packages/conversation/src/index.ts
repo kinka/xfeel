@@ -58,6 +58,31 @@ export type {
   UnderstandingFeedbackAction,
   UnderstandingVisibility,
 } from "./memory/understanding-feedback";
+export {
+  buildWisdomText,
+  isWisdomEnabled,
+  loadWisdomContext,
+} from "./wisdom/wisdom-context";
+export {
+  detectLevers,
+  hasDistressSignal,
+} from "./wisdom/lever-detector";
+export {
+  maybeCaptureNarrative,
+} from "./wisdom/narrative-capture";
+export {
+  buildNarrativeEvidence,
+} from "./wisdom/narrative-evidence";
+export {
+  getPreferredNarratives,
+} from "./wisdom/narrative-store";
+export type {
+  ConstrualLever,
+  LeverHit,
+  PreferredNarrative,
+  WisdomPlan,
+  WisdomSkipReason,
+} from "./wisdom/lever-types";
 export type {
   RecallIntent,
   RecallDirection,

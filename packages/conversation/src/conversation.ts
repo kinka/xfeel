@@ -9,6 +9,10 @@ import { routeMessage, type ConversationMode, type RouteResult } from "./intent-
 import { loadSessionContext, summarizeRecentTurns, type AmbientContext, type SessionContext, type SessionTurn } from "./session-context";
 import { entityCanonForOwner, executeRecallIntent, ruleBasedRecallIntent, type RecalledItem, type RecallDirection } from "./recall-intent";
 import { loadUnderstandingContext, type UnderstandingContext } from "./memory/profile-context";
+import { loadWisdomContext } from "./wisdom/wisdom-context";
+import { maybeCaptureNarrative } from "./wisdom/narrative-capture";
+import { getLastAssistantTurnId, recordIntervention } from "./wisdom/lever-store";
+import type { WisdomPlan } from "./wisdom/lever-types";
 
 export type ConversationRole = "user" | "assistant" | "system";
 
@@ -180,6 +184,24 @@ export async function chatWithMemory(input: {
   // 长期理解(L3)+近期状态(L2)理解层：让回复像懂这个人的家人，而不只是检索相似事件。
   const understanding = loadUnderstandingContext({ owner_id: ownerId });
 
+  // 智慧干预：先回收"上一句反问有没有被 ta 自己答出一句新解释"，再判断这一句要不要发问。
+  // 顺序不能反：同一条消息既是上次干预的答案，又可能是新一轮的触发。
+  const previousAssistantTurnId = getLastAssistantTurnId(ownerId);
+  await maybeCaptureNarrative({
+    owner_id: ownerId,
+    text: routedText,
+    date: normalizeDate(input.date),
+    previousAssistantTurnId,
+  });
+  const wisdom = await loadWisdomContext({
+    owner_id: ownerId,
+    text: routedText,
+    date: normalizeDate(input.date),
+    recentDialogue,
+    turn_id: userTurn.id,
+    scope_owner_ids: input.scope_owner_ids,
+  });
+
   let recalled: ChatResult["recalled"] = [];
   let reply: string;
   if (isAuto) {
@@ -190,7 +212,7 @@ export async function chatWithMemory(input: {
     } else if (isLatestLogStatusQuestion(routedText)) {
       reply = buildLatestLogStatusReply(ownerId, input.date);
     } else {
-      ({ reply, recalled } = await buildReplyWithRecall({ text: replyText, owner_id: ownerId, scope_owner_ids: input.scope_owner_ids, date: input.date, recentDialogue, ambient: sessionContext.ambient, understanding, limit: input.limit || 6 }));
+      ({ reply, recalled } = await buildReplyWithRecall({ text: replyText, owner_id: ownerId, scope_owner_ids: input.scope_owner_ids, date: input.date, recentDialogue, ambient: sessionContext.ambient, understanding, wisdomText: wisdom.text, limit: input.limit || 6 }));
     }
   } else if ((mode === "chat" || mode === "recall") && isLatestLogStatusQuestion(routedText)) {
     reply = buildLatestLogStatusReply(ownerId, input.date);
@@ -200,17 +222,17 @@ export async function chatWithMemory(input: {
     reply = buildReflectReply(routedText, sessionContext);
   } else if (mode === "recall") {
     // 共情回复 LLM 自己按需调用 recall 工具（结构化/语义检索），失败时降级到预取召回。
-    ({ reply, recalled } = await buildReplyWithRecall({ text: replyText, owner_id: ownerId, scope_owner_ids: input.scope_owner_ids, date: input.date, recentDialogue, ambient: sessionContext.ambient, understanding, limit: input.limit || 6 }));
+    ({ reply, recalled } = await buildReplyWithRecall({ text: replyText, owner_id: ownerId, scope_owner_ids: input.scope_owner_ids, date: input.date, recentDialogue, ambient: sessionContext.ambient, understanding, wisdomText: wisdom.text, limit: input.limit || 6 }));
   } else if (mode === "chat") {
     if (isSimpleGreeting(routedText)) {
       reply = buildSimpleGreetingReply();
     } else if (route.recallDepth === "hybrid" || isRecallSeekingQuestion(routedText)) {
-      ({ reply, recalled } = await buildReplyWithRecall({ text: replyText, owner_id: ownerId, scope_owner_ids: input.scope_owner_ids, date: input.date, recentDialogue, ambient: sessionContext.ambient, understanding, limit: input.limit || 6 }));
+      ({ reply, recalled } = await buildReplyWithRecall({ text: replyText, owner_id: ownerId, scope_owner_ids: input.scope_owner_ids, date: input.date, recentDialogue, ambient: sessionContext.ambient, understanding, wisdomText: wisdom.text, limit: input.limit || 6 }));
     } else {
-      reply = await buildReply(replyText, [], "question", sessionContext.ambient, understanding);
+      reply = await buildReply(replyText, [], "question", sessionContext.ambient, understanding, wisdom.text);
     }
   } else {
-    reply = await buildReply(replyText, [], "memory_note", sessionContext.ambient, understanding);
+    reply = await buildReply(replyText, [], "memory_note", sessionContext.ambient, understanding, wisdom.text);
   }
 
   const assistantTurn = recordConversationTurn({
@@ -219,10 +241,38 @@ export async function chatWithMemory(input: {
     role: "assistant",
     turn_date: input.date,
     source: "chat",
-    metadata: { recalled_event_ids: recalled.map(r => r.id).filter(Boolean) },
+    metadata: {
+      recalled_event_ids: recalled.map(r => r.id).filter(Boolean),
+      ...(wisdom.intervene ? { wisdom: { lever: wisdom.lever, asked: true } } : {}),
+    },
   });
+  recordWisdomAsk(wisdom, { ownerId, reply, date: normalizeDate(input.date), askedTurnId: assistantTurn.id });
 
   return { mode, user_turn: userTurn, assistant_turn: assistantTurn, reply, recalled };
+}
+
+/**
+ * 记下"我们问过 ta 这个问题"。
+ * 它撑起两件事：冷却期（别每次难过都追问）、以及下一条消息里回收 ta 自己的回答。
+ * 落库失败不能影响已经发出去的回复——最坏结果只是这次没形成闭环。
+ */
+function recordWisdomAsk(
+  wisdom: WisdomPlan,
+  ctx: { ownerId?: string; reply: string; date: string; askedTurnId: string },
+): void {
+  if (!wisdom.intervene || !wisdom.lever || !ctx.ownerId) return;
+  try {
+    recordIntervention({
+      ownerId: ctx.ownerId,
+      lever: wisdom.lever,
+      question: ctx.reply,
+      evidence: wisdom.counterEvidence,
+      date: ctx.date,
+      askedTurnId: ctx.askedTurnId,
+    });
+  } catch {
+    // 不阻塞回复
+  }
 }
 
 function formatRecentDialogue(recentTurns: SessionTurn[]): string {
@@ -430,6 +480,8 @@ async function buildReplyWithRecall(input: {
   recentDialogue: string;
   ambient?: AmbientContext;
   understanding?: UnderstandingContext;
+  /** 智慧干预提示块：命中时要求"先接住、再把解释权交回给 ta"，未命中为空串。 */
+  wisdomText?: string;
   limit: number;
 }): Promise<{ reply: string; recalled: ChatResult["recalled"] }> {
   // 所有 recall 统一走 tool-loop：reply LLM 自己把原句聚焦成 query（如"阿星 发烧"）再调 recall_memory，
@@ -487,6 +539,7 @@ async function buildReplyWithRecall(input: {
 
   const prompt = [
     input.understanding?.text ? `${input.understanding.text}\n` : "",
+    input.wisdomText ? `${input.wisdomText}\n` : "",
     `当前日期：${normalizeDate(input.date)}`,
     "",
     `用户刚说：${input.text}`,
@@ -509,7 +562,7 @@ async function buildReplyWithRecall(input: {
   }
 
   const pre = await recallMemoriesForReply({ text: input.text, recentDialogue: input.recentDialogue, owner_id: input.owner_id, scope_owner_ids: input.scope_owner_ids, limit: input.limit });
-  const reply = await buildReply(input.text, pre, "question", input.ambient, input.understanding);
+  const reply = await buildReply(input.text, pre, "question", input.ambient, input.understanding, input.wisdomText);
   return { reply, recalled: pre };
 }
 
@@ -930,6 +983,7 @@ async function buildReply(
   intent: ConversationIntent,
   ambient?: AmbientContext,
   understanding?: UnderstandingContext,
+  wisdomText?: string,
 ): Promise<string> {
   try {
     const memoryLines = recalled
@@ -939,7 +993,7 @@ async function buildReply(
     const llm = getLLM(roleLLMConfig("reply"));
     const raw = await withTimeout(
       llm.chat(
-        `${understanding?.text ? `${understanding.text}\n\n` : ""}用户刚说：${text}\n\n意图判断：${intent === "question" ? "用户在提问/讨论，不是在提供新记忆" : "用户可能在提供一条可归档的新记忆"}\n\n相关记忆：\n${memoryLines || "暂无"}\n\n近期环境上下文（弱背景，不等于召回证据）：\n${ambient?.text || "暂无"}\n\n请用简短、自然、具体的方式回应，并在适合时承接已有记忆。最多 2-3 句、控制在 120 字内，不要用 Markdown 加粗，不要展开分点清单。若用户是在提问，不要回复“我记下来了”或承诺归档；只有用户明确提供新事实时才确认记录。`,
+        `${understanding?.text ? `${understanding.text}\n\n` : ""}${wisdomText ? `${wisdomText}\n\n` : ""}用户刚说：${text}\n\n意图判断：${intent === "question" ? "用户在提问/讨论，不是在提供新记忆" : "用户可能在提供一条可归档的新记忆"}\n\n相关记忆：\n${memoryLines || "暂无"}\n\n近期环境上下文（弱背景，不等于召回证据）：\n${ambient?.text || "暂无"}\n\n请用简短、自然、具体的方式回应，并在适合时承接已有记忆。最多 2-3 句、控制在 120 字内，不要用 Markdown 加粗，不要展开分点清单。若用户是在提问，不要回复“我记下来了”或承诺归档；只有用户明确提供新事实时才确认记录。`,
         "你是 xfeel 的家庭记忆助手。不要编造事实；只基于用户当前消息和给定记忆回应。必须先区分用户是在提问还是在记录新事实。",
       ),
       getReplyLlmTimeoutMs(),

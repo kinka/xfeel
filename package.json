@@ -19,7 +19,8 @@
     "nightly:once": "bun run scripts/nightly-worker.ts --once",
     "test:ui": "bash scripts/test-conversation-ui.sh",
     "test": "bun test",
-    "typecheck": "tsc -p tsconfig.check.json --noEmit"
+    "typecheck": "tsc -p tsconfig.check.json --noEmit",
+    "eval:wisdom": "bun run scripts/eval-wisdom.ts"
   },
   "dependencies": {
     "zod": "^3.23.0",
