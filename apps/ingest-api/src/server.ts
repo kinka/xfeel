@@ -1279,7 +1279,10 @@ export async function buildApp() {
     const rows = getDB().prepare(`
       SELECT id, summary, original_text, event_type, entities, emotion, tags, event_date, event_time, created_at
       FROM memory_events
-      WHERE user_id = ? AND COALESCE(NULLIF(event_date, ''), substr(created_at, 1, 10)) = ?
+      WHERE user_id = ?
+        AND COALESCE(NULLIF(event_date, ''), substr(created_at, 1, 10)) = ?
+        -- parse:Feeling / parse:Activity 等是供分析使用的派生事件，不是用户记录。
+        AND source_layer != 'structured'
       ORDER BY COALESCE(event_time, created_at) ASC
     `).all(ownerId, day);
     return reply.send({ owner_id: ownerId, date: day, events: rows, total: rows.length });
@@ -1294,8 +1297,12 @@ export async function buildApp() {
     const like = `${m}-%`;
     const days: Record<string, number> = {};
     const eventRows = getDB().prepare(`
-      SELECT COALESCE(NULLIF(event_date, ''), substr(created_at, 1, 10)) AS d, COUNT(*) AS c
-      FROM memory_events WHERE user_id = ? AND COALESCE(NULLIF(event_date, ''), substr(created_at, 1, 10)) LIKE ?
+      SELECT COALESCE(NULLIF(event_date, ''), substr(created_at, 1, 10)) AS d,
+             COUNT(DISTINCT COALESCE(NULLIF(raw_message_id, ''), id)) AS c
+      FROM memory_events
+      WHERE user_id = ?
+        AND source_layer != 'structured'
+        AND COALESCE(NULLIF(event_date, ''), substr(created_at, 1, 10)) LIKE ?
       GROUP BY d
     `).all(ownerId, like) as Array<{ d: string; c: number }>;
     for (const row of eventRows) days[row.d] = (days[row.d] || 0) + row.c;
@@ -2130,8 +2137,9 @@ function appendCareFollowUp(reply: string, ownerId: string | undefined, intent?:
   }
 }
 
-const WECHAT_TOKEN = process.env.WECHAT_TOKEN?.trim() || "";
-const WECHAT_SIGNATURE_MAX_SKEW_SECONDS = Number(process.env.WECHAT_SIGNATURE_MAX_SKEW_SECONDS || 300);
+// token / skew 必须在校验时读取，不能在模块作用域捕获：
+// bun 全量跑测试时 server.ts 可能被别的文件先 import，那时 WECHAT_TOKEN 还没被本文件的测试 set 上，
+// 捕获成空串后所有签名都会被 if (!token) return false 拒掉（单独跑本文件测试是绿的）。
 const WECHAT_RETRY_CACHE_TTL_MS = 30_000;
 const WECHAT_RETRY_HOLD_TIMEOUT_MS = Number(process.env.WECHAT_RETRY_HOLD_TIMEOUT_MS || 6_000);
 const WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS = Number(process.env.WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS || 3_800);
@@ -2146,15 +2154,27 @@ interface WechatSignatureInput {
   nonce: string;
 }
 
+function wechatToken(): string {
+  return process.env.WECHAT_TOKEN?.trim() || "";
+}
+
+function wechatSignatureMaxSkewSeconds(): number {
+  const value = Number(process.env.WECHAT_SIGNATURE_MAX_SKEW_SECONDS || 300);
+  return Number.isFinite(value) && value > 0 ? value : 300;
+}
+
 function isValidWechatSignature({ signature, timestamp, nonce }: WechatSignatureInput) {
-  if (!WECHAT_TOKEN || !/^\d{10}$/.test(timestamp) || !nonce || !/^[a-f\d]{40}$/i.test(signature)) return false;
+  const token = wechatToken();
+  if (!token || !/^\d{10}$/.test(timestamp) || !nonce || !/^[a-f\d]{40}$/i.test(signature)) return false;
   const timestampSeconds = Number(timestamp);
   if (!Number.isSafeInteger(timestampSeconds)
-    || Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > WECHAT_SIGNATURE_MAX_SKEW_SECONDS) return false;
+    || Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > wechatSignatureMaxSkewSeconds()) return false;
   const digest = crypto
     .createHash("sha1")
-    .update([WECHAT_TOKEN, timestamp, nonce].sort().join(""))
+    .update([token, timestamp, nonce].sort().join(""))
     .digest("hex");
+  // 长度不同时 timingSafeEqual 会抛 RangeError；正则已限制为 40 hex，这里再保险一次。
+  if (digest.length !== signature.length) return false;
   return crypto.timingSafeEqual(Buffer.from(digest, "hex"), Buffer.from(signature, "hex"));
 }
 
