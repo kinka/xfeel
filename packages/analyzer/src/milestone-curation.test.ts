@@ -69,6 +69,25 @@ describe("milestone curation", () => {
     expect(snapshot.curated).toBe(true);
   });
 
+  test("rebuilds when candidate content or date changes without changing candidate count", async () => {
+    insertEvent({ summary: "星星第一次自己泡奶", date: "2026-07-01" });
+    let calls = 0;
+    const deps = {
+      chatJSON: async () => {
+        calls++;
+        return { milestones: [{ i: 0, title: "星星第一次自己泡奶", person: "星星" }] };
+      },
+    };
+    await getMilestones(owner, {}, deps);
+    getDB().prepare(`
+      UPDATE memory_events
+      SET summary = '星星第一次独立泡奶', event_date = '2026-07-02'
+      WHERE user_id = ?
+    `).run(owner);
+    await getMilestones(owner, {}, deps);
+    expect(calls).toBe(2);
+  });
+
   test("falls back to deterministic list when LLM fails", async () => {
     insertEvent({ summary: "阿禾第一次翻身", date: "2026-05-01" });
     insertEvent({ summary: "阿禾第一次翻身", date: "2026-05-03" }); // 双写漂移

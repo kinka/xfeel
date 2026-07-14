@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { getDB } from "../../db/src/database";
 import { getLLM } from "../../ai-client/src/llm";
 import { roleLLMConfig } from "../../ai-client/src/roles";
@@ -31,6 +32,7 @@ interface CandidateRow {
   event_type: string;
   event_date: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 /** 测试注入口：避免 mock.module 进程级泄漏。 */
@@ -110,12 +112,13 @@ export async function getMilestones(
 }
 
 /**
- * 候选口径（与旧 /milestones 查询一致）：新抽取器的 milestone 类型直接采信；
- * legacy 只认 summary 里的"第一次/首次/学会"（旧规则误标教训）；original_text 不参与。
+ * 候选口径：新抽取器及一次性 LLM 回填确认的 milestone 进入候选；
+ * 未复核的 legacy 仍只用关键词兜底，避免旧规则把普通工作进展误标成里程碑。
  */
 function loadCandidates(ownerId: string): CandidateRow[] {
-  return getDB().prepare(`
-    SELECT id, summary, event_type, event_date, created_at
+  const maxCandidates = 400;
+  const rows = getDB().prepare(`
+    SELECT id, summary, event_type, event_date, created_at, updated_at
     FROM memory_events
     WHERE user_id = ?
       AND (
@@ -123,13 +126,28 @@ function loadCandidates(ownerId: string): CandidateRow[] {
         OR summary LIKE '%第一次%' OR summary LIKE '%首次%' OR summary LIKE '%学会%'
       )
     ORDER BY COALESCE(NULLIF(event_date, ''), substr(created_at, 1, 10)) ASC, COALESCE(event_time, created_at) ASC
-    LIMIT 400
-  `).all(ownerId) as CandidateRow[];
+    LIMIT ?
+  `).all(ownerId, maxCandidates + 1) as CandidateRow[];
+  if (rows.length > maxCandidates) {
+    logWarn("milestone_candidates_truncated", { owner_len: ownerId.length, total_at_least: rows.length, limit: maxCandidates });
+  }
+  return rows.slice(0, maxCandidates);
 }
 
 function candidateSignature(candidates: CandidateRow[]): string {
-  const latest = candidates.reduce((max, c) => (c.created_at > max ? c.created_at : max), "");
-  return `${candidates.length}|${latest}`;
+  const hash = createHash("sha256");
+  for (const candidate of candidates) {
+    hash.update(JSON.stringify([
+      candidate.id,
+      candidate.summary,
+      candidate.event_type,
+      candidate.event_date,
+      candidate.created_at,
+      candidate.updated_at,
+    ]));
+    hash.update("\n");
+  }
+  return `v2|${candidates.length}|${hash.digest("hex")}`;
 }
 
 /** LLM 不可用时的兜底：按 summary 去重的原始列表（长文截断当标题）。 */
