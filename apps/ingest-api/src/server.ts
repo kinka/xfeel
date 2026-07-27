@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import crypto from "node:crypto";
 import cors from "@fastify/cors";
 import { existsSync, readFileSync } from "node:fs";
@@ -69,7 +69,32 @@ export async function buildApp() {
       level: process.env.LOG_LEVEL || "info",
       timestamp: () => `,"time":"${new Date().toISOString()}"`,
     },
+    // 只有部署在受信反代（nginx 等）之后才设 XFEEL_TRUST_PROXY=1：开启后 req.ip 取
+    // X-Forwarded-For 最后一跳；关闭时该头是客户端可随意伪造的，绝不能用于限流键。
+    trustProxy: /^(1|true|yes|on)$/i.test(process.env.XFEEL_TRUST_PROXY || ""),
   });
+
+  // 网页登录接口 IP 级频控：创建暗号和兑换暗号分别限流，防止对 6 位短暗号暴力枚举。
+  interface RateLimitEntry { count: number; resetAt: number; }
+  const loginStartRateLimit = new Map<string, RateLimitEntry>();
+  const loginRedeemRateLimit = new Map<string, RateLimitEntry>();
+
+  function getClientIp(req: FastifyRequest): string {
+    return req.ip || "unknown";
+  }
+
+  function checkRateLimit(map: Map<string, RateLimitEntry>, key: string, maxAttempts: number, windowMs: number): boolean {
+    const now = Date.now();
+    const entry = map.get(key);
+    if (!entry || now > entry.resetAt) {
+      map.set(key, { count: 1, resetAt: now + windowMs });
+      return true;
+    }
+    if (entry.count >= maxAttempts) return false;
+    entry.count += 1;
+    return true;
+  }
+
   app.addContentTypeParser("text/xml", { parseAs: "string" }, (_req, body, done) => done(null, body));
   app.addContentTypeParser("application/xml", { parseAs: "string" }, (_req, body, done) => done(null, body));
   await app.register(cors);
@@ -1003,7 +1028,11 @@ export async function buildApp() {
   });
 
   /** POST /web/login/start — 网页申请登录：生成暗号，由用户在公众号回复完成认领 */
-  app.post("/web/login/start", async (_req, reply) => {
+  app.post("/web/login/start", async (req, reply) => {
+    const ip = getClientIp(req);
+    if (!checkRateLimit(loginStartRateLimit, ip, 10, 60_000)) {
+      return reply.status(429).send({ error: "too_many_requests", retry_after_ms: 60_000 });
+    }
     const { code, expiresAt } = createWebLoginCode();
     return reply.send({
       code,
@@ -1023,7 +1052,14 @@ export async function buildApp() {
   app.post("/web/login/redeem", async (req, reply) => {
     const { code } = req.body as { code?: string };
     if (!code?.trim()) return reply.status(400).send({ error: "code is required" });
+    const ip = getClientIp(req);
+    if (!checkRateLimit(loginRedeemRateLimit, ip, 30, 60_000)) {
+      return reply.status(429).send({ error: "too_many_requests", retry_after_ms: 60_000 });
+    }
     const result = redeemWebLoginCode(code);
+    if (result.status === "locked") {
+      return reply.status(429).send({ error: "locked", status: result.status, message: "暗号尝试次数过多，请重新获取" });
+    }
     if (result.status !== "authorized") return reply.status(409).send({ status: result.status });
     return reply.send({
       status: result.status,
@@ -1988,6 +2024,7 @@ function handleAccountCommand(input: { platform: string; external_user_id?: stri
     const reason = claim.reason === "expired" ? "这个登录暗号过期了"
       : claim.reason === "already_used" ? "这个登录暗号已经用过了"
       : claim.reason === "already_claimed" ? "这个登录暗号刚被确认过了"
+      : claim.reason === "locked" ? "这个登录暗号尝试次数过多，已被临时锁定"
       : "没找到这个登录暗号";
     return { matched: true, intent: "web_login", reply: `${reason}，请回到网页重新获取一个。` };
   }

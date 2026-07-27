@@ -125,4 +125,83 @@ describe("web login (phase 3)", () => {
       db.close();
     }
   });
+
+  test("locks web login code after repeated failed redeem attempts", () => {
+    const db = new Database(":memory:");
+    try {
+      initSchema(db);
+      const { code } = createWebLoginCode(db);
+
+      // 未认领的暗号兑换返回 pending，不增加失败计数
+      for (let i = 0; i < 10; i++) {
+        expect(redeemWebLoginCode(code, db).status).toBe("pending");
+      }
+
+      // 让暗号过期，之后每次兑换都是失败，累计 5 次后锁定
+      db.prepare("UPDATE verification_codes SET expires_at = ? WHERE code = ?")
+        .run(new Date(Date.now() - 1000).toISOString(), code);
+
+      for (let i = 0; i < 5; i++) {
+        expect(redeemWebLoginCode(code, db).status).toBe("expired");
+      }
+
+      // 第 6 次触发锁定
+      expect(redeemWebLoginCode(code, db).status).toBe("locked");
+      expect(getWebLoginStatus(code, db)).toBe("locked");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("locks web login code after repeated failed claim attempts", () => {
+    const db = new Database(":memory:");
+    try {
+      initSchema(db);
+      // 先创建一个已认领的暗号
+      const { code } = createWebLoginCode(db);
+      expect(claimWebLoginCode({ platform: "weixin", external_user_id: "wx-a", code }, db).ok).toBe(true);
+
+      // 其他微信号反复尝试认领该暗号，5 次失败后锁定
+      for (let i = 0; i < 5; i++) {
+        const result = claimWebLoginCode({ platform: "weixin", external_user_id: `wx-b-${i}`, code }, db);
+        expect(result.ok).toBe(false);
+        expect(result.reason).toBe("already_claimed");
+      }
+
+      const locked = claimWebLoginCode({ platform: "weixin", external_user_id: "wx-b-5", code }, db);
+      expect(locked.ok).toBe(false);
+      expect(locked.reason).toBe("locked");
+      expect(getWebLoginStatus(code, db)).toBe("locked");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("successful claim clears failed attempt counter", () => {
+    const db = new Database(":memory:");
+    try {
+      initSchema(db);
+      const { code } = createWebLoginCode(db);
+
+      // 先让暗号过期并失败 2 次
+      db.prepare("UPDATE verification_codes SET expires_at = ? WHERE code = ?")
+        .run(new Date(Date.now() - 1000).toISOString(), code);
+      for (let i = 0; i < 2; i++) {
+        expect(redeemWebLoginCode(code, db).status).toBe("expired");
+      }
+
+      // 重新创建一张新的有效暗号（旧暗号已过期），避免无法 claim
+      // 这里直接更新原暗号让它重新有效，并继续测试
+      db.prepare("UPDATE verification_codes SET expires_at = ? WHERE code = ?")
+        .run(new Date(Date.now() + 10 * 60 * 1000).toISOString(), code);
+
+      // 成功认领应清空失败计数
+      expect(claimWebLoginCode({ platform: "weixin", external_user_id: "wx-user", code }, db).ok).toBe(true);
+      const row = db.prepare("SELECT attempt_count, locked_until FROM verification_codes WHERE code = ?").get(code) as { attempt_count: number; locked_until: string | null };
+      expect(row.attempt_count).toBe(0);
+      expect(row.locked_until).toBeNull();
+    } finally {
+      db.close();
+    }
+  });
 });

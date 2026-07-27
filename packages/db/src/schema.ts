@@ -458,6 +458,8 @@ export function ensureFamilyOnboardingSchema(db: Database) {
       claimed_by_platform TEXT,
       claimed_at TEXT,
       used_at TEXT,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      locked_until TEXT,
       metadata TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE
@@ -478,6 +480,15 @@ export function ensureFamilyOnboardingSchema(db: Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_web_sessions_external ON web_sessions(platform, external_user_id);
   `);
+
+  // 迁移：为 verification_codes 增加失败尝试计数与锁定字段（开源后新增频控）
+  const vcCols = db.prepare("PRAGMA table_info(verification_codes)").all() as Array<{ name: string }>;
+  if (!vcCols.some(c => c.name === "attempt_count")) {
+    db.exec("ALTER TABLE verification_codes ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!vcCols.some(c => c.name === "locked_until")) {
+    db.exec("ALTER TABLE verification_codes ADD COLUMN locked_until TEXT");
+  }
 }
 
 function ensureMemoryEventsColumns(db: Database) {

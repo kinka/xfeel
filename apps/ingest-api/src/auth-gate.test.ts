@@ -329,4 +329,24 @@ describe("web JWT auth gate + multi-tenant isolation", () => {
     expect(body.admin).toBe(false);
     expect(body.owners.map((o: { id: string }) => o.id)).toContain(ownerId);
   });
+
+  test("rate limit: excessive web login start requests are throttled per IP", async () => {
+    for (let i = 0; i < 10; i++) {
+      const res = await app.inject({ method: "POST", url: "/web/login/start" });
+      expect(res.statusCode).toBe(200);
+    }
+    const res = await app.inject({ method: "POST", url: "/web/login/start" });
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toMatchObject({ error: "too_many_requests" });
+  });
+
+  test("rate limit: excessive web login redeem attempts are throttled per IP", async () => {
+    for (let i = 0; i < 30; i++) {
+      const res = await app.inject({ method: "POST", url: "/web/login/redeem", payload: { code: "999999" } });
+      expect(res.statusCode).toBe(409);
+    }
+    const res = await app.inject({ method: "POST", url: "/web/login/redeem", payload: { code: "999999" } });
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toMatchObject({ error: "too_many_requests" });
+  });
 });

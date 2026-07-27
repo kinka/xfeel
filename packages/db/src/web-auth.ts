@@ -55,18 +55,43 @@ interface CodeRow {
   claimed_by_openid: string | null;
   claimed_at: string | null;
   used_at: string | null;
+  attempt_count: number;
+  locked_until: string | null;
+}
+
+/** 网页登录暗号失败锁定配置：超过即锁定，防止对短暗号暴力枚举。 */
+const WEB_LOGIN_MAX_ATTEMPTS = 5;
+const WEB_LOGIN_LOCK_MS = 30 * 60 * 1000; // 30 分钟
+
+function isLocked(row: Pick<CodeRow, "locked_until">): boolean {
+  if (!row.locked_until) return false;
+  return Date.parse(row.locked_until) > Date.now();
+}
+
+function recordFailedAttempt(code: string, currentAttemptCount: number, db: Database): void {
+  const newCount = currentAttemptCount + 1;
+  const lockedUntil = newCount >= WEB_LOGIN_MAX_ATTEMPTS ? new Date(Date.now() + WEB_LOGIN_LOCK_MS).toISOString() : null;
+  db.prepare(
+    "UPDATE verification_codes SET attempt_count = ?, locked_until = ? WHERE code = ? AND purpose = 'web_login'"
+  ).run(newCount, lockedUntil, code);
+}
+
+function clearAttempts(code: string, db: Database): void {
+  db.prepare(
+    "UPDATE verification_codes SET attempt_count = 0, locked_until = NULL WHERE code = ? AND purpose = 'web_login'"
+  ).run(code);
 }
 
 function loadLoginCode(db: Database, code: string): CodeRow | undefined {
   return db.prepare(`
-    SELECT code, family_id, expires_at, claimed_by_openid, claimed_at, used_at
+    SELECT code, family_id, expires_at, claimed_by_openid, claimed_at, used_at, attempt_count, locked_until
     FROM verification_codes WHERE code = ? AND purpose = 'web_login'
   `).get(code) as CodeRow | undefined;
 }
 
 export interface ClaimResult {
   ok: boolean;
-  reason?: "code_not_found" | "expired" | "already_claimed" | "already_used";
+  reason?: "code_not_found" | "expired" | "already_claimed" | "already_used" | "locked";
   familyName?: string;
 }
 
@@ -79,9 +104,19 @@ export function claimWebLoginCode(input: { platform?: string; external_user_id: 
 
   const row = loadLoginCode(db, normalized);
   if (!row) return { ok: false, reason: "code_not_found" };
-  if (row.used_at) return { ok: false, reason: "already_used" };
-  if (Date.parse(row.expires_at) < Date.now()) return { ok: false, reason: "expired" };
-  if (row.claimed_at) return { ok: false, reason: "already_claimed" };
+  if (isLocked(row)) return { ok: false, reason: "locked" };
+  if (row.used_at) {
+    recordFailedAttempt(normalized, row.attempt_count, db);
+    return { ok: false, reason: "already_used" };
+  }
+  if (Date.parse(row.expires_at) < Date.now()) {
+    recordFailedAttempt(normalized, row.attempt_count, db);
+    return { ok: false, reason: "expired" };
+  }
+  if (row.claimed_at) {
+    recordFailedAttempt(normalized, row.attempt_count, db);
+    return { ok: false, reason: "already_claimed" };
+  }
 
   let family = getFamilySummary({ platform, external_user_id: externalUserId }, db);
   if (!family) family = autoProvisionFamilyForSpeaker({ platform, external_user_id: externalUserId }, db);
@@ -91,11 +126,12 @@ export function claimWebLoginCode(input: { platform?: string; external_user_id: 
     SET claimed_by_openid = ?, claimed_by_platform = ?, family_id = ?, claimed_at = datetime('now')
     WHERE code = ?
   `).run(externalUserId, platform, family.family.id, normalized);
+  clearAttempts(normalized, db);
 
   return { ok: true, familyName: family.family.name };
 }
 
-export type WebLoginStatus = "not_found" | "pending" | "claimed" | "expired" | "used";
+export type WebLoginStatus = "not_found" | "pending" | "claimed" | "expired" | "used" | "locked";
 
 /** 网页轮询用：只读，不消费。 */
 export function getWebLoginStatus(code: string, db: Database = getDB()): WebLoginStatus {
@@ -104,12 +140,13 @@ export function getWebLoginStatus(code: string, db: Database = getDB()): WebLogi
   const row = loadLoginCode(db, normalized);
   if (!row) return "not_found";
   if (row.used_at) return "used";
+  if (isLocked(row)) return "locked";
   if (Date.parse(row.expires_at) < Date.now()) return "expired";
   return row.claimed_at ? "claimed" : "pending";
 }
 
 export interface RedeemResult {
-  status: "authorized" | "pending" | "expired" | "used" | "not_found";
+  status: "authorized" | "pending" | "expired" | "used" | "not_found" | "locked";
   token?: string;
   expiresAt?: string;
   familyId?: string;
@@ -157,9 +194,19 @@ export function redeemWebLoginCode(code: string, db: Database = getDB()): Redeem
   if (!normalized) return { status: "not_found" };
   const row = loadLoginCode(db, normalized);
   if (!row) return { status: "not_found" };
-  if (row.used_at) return { status: "used" };
-  if (Date.parse(row.expires_at) < Date.now()) return { status: "expired" };
-  if (!row.claimed_by_openid || !row.family_id) return { status: "pending" };
+  if (isLocked(row)) return { status: "locked" };
+  if (row.used_at) {
+    recordFailedAttempt(normalized, row.attempt_count, db);
+    return { status: "used" };
+  }
+  if (Date.parse(row.expires_at) < Date.now()) {
+    recordFailedAttempt(normalized, row.attempt_count, db);
+    return { status: "expired" };
+  }
+  if (!row.claimed_by_openid || !row.family_id) {
+    // 尚未被认领，不算失败，不增加尝试计数
+    return { status: "pending" };
+  }
 
   let result: RedeemResult | undefined;
   const tx = db.transaction(() => {
@@ -168,6 +215,7 @@ export function redeemWebLoginCode(code: string, db: Database = getDB()): Redeem
   });
   tx();
 
+  clearAttempts(normalized, db);
   return result!;
 }
 
