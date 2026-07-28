@@ -23,5 +23,12 @@ export const ROLE_TEMPERATURE: Record<LLMRole, number> = {
 };
 
 export function roleLLMConfig(role: LLMRole): Partial<LLMConfig> {
-  return { model: ROLE_MODELS[role], temperature: ROLE_TEMPERATURE[role] };
+  const model = ROLE_MODELS[role];
+  return { model, temperature: modelTemperature(model, ROLE_TEMPERATURE[role]) };
+}
+
+export function modelTemperature(model: string, preferred: number): number {
+  // Kimi K3's OpenAI-compatible endpoint currently rejects every temperature
+  // except 1. Other models retain the product's role-specific defaults.
+  return /^kimi-k3(?:$|[-:])/i.test(model) ? 1 : preferred;
 }

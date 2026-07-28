@@ -33,7 +33,7 @@ const { initSchema } = await import("../../db/src/schema");
 const { extract } = await import("../../extractors/src/extract");
 const { classifyIntentLLM } = await import("./intent-classifier");
 const { chatWithMemory } = await import("./conversation");
-const { ROLE_MODELS } = await import("../../ai-client/src/roles");
+const { ROLE_MODELS, modelTemperature } = await import("../../ai-client/src/roles");
 
 const DAD = "demo-dad-owner";
 const DATE = "2026-06-18";
@@ -59,6 +59,12 @@ describe("LLM role-to-model routing", () => {
     expect(ROLE_MODELS.extract).toBe("claude-sonnet-4-6");
     expect(ROLE_MODELS.intent).toBe("claude-sonnet-4-6");
     expect(ROLE_MODELS.reply).toBe("claude-sonnet-4-6");
+  });
+
+  test("uses the only temperature accepted by Kimi K3", () => {
+    expect(modelTemperature("kimi-k3", 0.1)).toBe(1);
+    expect(modelTemperature("kimi-k3-fast", 0.7)).toBe(1);
+    expect(modelTemperature("claude-sonnet-4-6", 0.7)).toBe(0.7);
   });
 
   test("extraction calls the extract role model", async () => {
