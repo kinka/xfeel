@@ -28,6 +28,7 @@ process.env.WECHAT_RETRY_HOLD_TIMEOUT_MS = "150";
 process.env.WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS = "300";
 process.env.WECHAT_DISPLAYABLE_ATTEMPT = "3";
 process.env.WECHAT_TOKEN = "test-only-wechat-token";
+process.env.XFEEL_WEB_URL = "https://web.example"; // 慢回复兜底里的直达链接需要显式站点地址
 
 const { buildApp } = await import("./server");
 const { closeDB, getDB } = await import("../../../packages/db/src/database");
@@ -345,5 +346,20 @@ describe("wechat message entry", () => {
     expect(thirdElapsed).toBeGreaterThanOrEqual(250);
     expect(thirdElapsed).toBeLessThan(450);
     expect(third.body).toContain("我收到了，只是处理得比较久");
+
+    // 兜底回复里带一张一次性直达票据：点开即换成正式 token，不用再走暗号
+    const link = third.body.match(/https:\/\/web\.example\/app\?k=(al_[A-Za-z0-9_-]+)&from=wechat/);
+    expect(link).not.toBeNull();
+    const exchange = await app.inject({ method: "POST", url: "/web/login/exchange", payload: { ticket: link![1] } });
+    expect(exchange.statusCode).toBe(200);
+    const session = exchange.json() as { token?: string; owner_id?: string; family_id?: string };
+    expect(session.token).toBeTruthy();
+    expect(session.owner_id).toBe(MEMORY_OWNER);
+    expect(session.family_id).toBe("fam-weixin");
+
+    // 一次性：同一张票据再点一次换不到第二个 token
+    const replay = await app.inject({ method: "POST", url: "/web/login/exchange", payload: { ticket: link![1] } });
+    expect(replay.statusCode).toBe(409);
+    expect(replay.json()).toEqual({ status: "used" });
   }, 16_000);
 });

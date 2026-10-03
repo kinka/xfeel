@@ -13,6 +13,7 @@
     calMonth: "",           // 日历面板当前显示的月份 YYYY-MM
     calCache: {},           // ownerId|month -> days map
     loadSeq: 0,             // 防止旧请求覆盖新日期的渲染
+    dayTurns: [],           // 当前渲染的当天对话（等待微信侧慢回复时用来判断"回复来了没"）
     pendingImage: null,     // 已选待发的图片文件（配文后一起发）
   };
 
@@ -280,6 +281,7 @@
     }
     if (!html) html = emptyHTML();
     feed.innerHTML = html;
+    state.dayTurns = data.turns || [];
     bindFeedEvents();
     feed.scrollTop = data.turns.length ? feed.scrollHeight : 0;
   }
@@ -391,6 +393,34 @@
       if (seq !== state.loadSeq) return;
       $("#feed").innerHTML = '<div class="empty">加载失败：' + esc(e.message) + "</div>";
     });
+  }
+
+  /**
+   * 从微信「处理得比较久」的直达链接进来（?from=wechat）：回复很可能还在算。
+   * 用户消息是进管线时就落库的、回复是算完才落库的，所以"最后一条是用户消息"= 回复还没到。
+   * 这时在信息流底部挂一个「正在输入」，轻量轮询到回复出现就整屏重载——用户不用自己刷新。
+   */
+  function waitForPendingReply() {
+    var turns = state.dayTurns || [];
+    var last = turns[turns.length - 1];
+    if (!last || last.role !== "user") return; // 最后一条已经是回复，没什么可等
+    var owner = state.ownerId, day = state.date;
+    var typing = appendTyping();
+    var qs = "owner_id=" + encodeURIComponent(owner) + "&date=" + encodeURIComponent(day) + "&limit=200";
+    var deadline = Date.now() + 120000;
+    var timer = setInterval(function () {
+      if (state.ownerId !== owner || state.date !== day) { stop(); return; } // 用户自己翻走了
+      if (Date.now() > deadline) { stop(); toast("回复还没生成好，稍后刷新看看"); return; }
+      api("/conversation/playground/diagnostics?" + qs).then(function (res) {
+        var list = (res && res.diagnostics) || [];
+        var tail = list[list.length - 1];
+        if (tail && tail.role !== "user") { stop(); loadDay(); }
+      }).catch(function () { /* 轮询容忍瞬时错误 */ });
+    }, 4000);
+    function stop() {
+      clearInterval(timer);
+      if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+    }
   }
 
   // ===== 发送 =====
@@ -917,7 +947,9 @@
         $("#feed").innerHTML = '<div class="empty">还没有绑定家庭成员<br/>请先在微信里发一条消息完成初始化</div>';
         return;
       }
-      loadDay();
+      // 微信兜底回复里的直达链接：结果可能还在算，等它落地（renderHeader 之后 from 会被擦掉）
+      var fromWechat = params.get("from") === "wechat";
+      loadDay().then(function () { if (fromWechat) waitForPendingReply(); });
       // 占位「本人」用户首次进入：引导设置称呼（跳过一次后不再自动弹，菜单里随时可改）
       var skipped = "";
       try { skipped = localStorage.getItem("xfeel_label_prompt_skipped") || ""; } catch (e) {}

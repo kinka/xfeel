@@ -39,7 +39,7 @@ import {
 } from "../../../packages/db/src/family";
 import {
   createWebLoginCode, claimWebLoginCode, getWebLoginStatus, redeemWebLoginCode, normalizeLoginCode,
-  authorizeWebSessionForWechat,
+  authorizeWebSessionForWechat, createAutoLoginTicket, redeemAutoLoginTicket,
 } from "../../../packages/db/src/web-auth";
 import { signWebToken, verifyWebToken, type WebTokenClaims } from "../../../packages/db/src/web-jwt";
 import { hashId, logError, logInfo, logWarn, maskId, previewText, safeErrorMessage, textLogFields } from "../../../packages/observability/src/logging";
@@ -1060,6 +1060,26 @@ export async function buildApp() {
     if (result.status === "locked") {
       return reply.status(429).send({ error: "locked", status: result.status, message: "暗号尝试次数过多，请重新获取" });
     }
+    if (result.status !== "authorized") return reply.status(409).send({ status: result.status });
+    return reply.send({
+      status: result.status,
+      token: result.token,
+      expires_at: result.expiresAt,
+      family_id: result.familyId,
+      owner_id: result.ownerId,
+      speaker_label: result.speakerLabel,
+    });
+  });
+
+  /** POST /web/login/exchange — 用微信回复里带的一次性直达票据换 1 年 token（免登录直达网页版） */
+  app.post("/web/login/exchange", async (req, reply) => {
+    const { ticket } = req.body as { ticket?: string };
+    if (!ticket?.trim()) return reply.status(400).send({ error: "ticket is required" });
+    const ip = getClientIp(req);
+    if (!checkRateLimit(loginRedeemRateLimit, ip, 30, 60_000)) {
+      return reply.status(429).send({ error: "too_many_requests", retry_after_ms: 60_000 });
+    }
+    const result = redeemAutoLoginTicket(ticket);
     if (result.status !== "authorized") return reply.status(409).send({ status: result.status });
     return reply.send({
       status: result.status,
@@ -2182,6 +2202,40 @@ const WECHAT_RETRY_HOLD_TIMEOUT_MS = Number(process.env.WECHAT_RETRY_HOLD_TIMEOU
 const WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS = Number(process.env.WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS || 3_800);
 const WECHAT_DISPLAYABLE_ATTEMPT = Number(process.env.WECHAT_DISPLAYABLE_ATTEMPT || 3);
 const WECHAT_SLOW_PROCESSING_REPLY = "我收到了，只是处理得比较久。";
+
+/**
+ * 微信 5 秒内没能给出真正回复时的兜底文案。
+ *
+ * 结果最终会落在网页版的当天信息流里，但让用户「自己去网页登录」等于让 ta 放弃——
+ * 所以这里顺手签一张一次性直达票据（我们此刻已知 openid），把免登录链接附在回复后面：
+ * 点一下就落到 /app 今天的信息流底部，回复算完即刻出现在那里。
+ * 没配 XFEEL_WEB_URL 时不加链接：那种情况下 base 只会是 localhost，贴出去反而误导。
+ */
+function buildWechatSlowProcessingReply(openid?: string): string {
+  const link = buildWechatAutoLoginLink(openid);
+  return link
+    ? `${WECHAT_SLOW_PROCESSING_REPLY}\n处理好就会出现在网页版，点这里直接看（无需登录）：\n${link}`
+    : WECHAT_SLOW_PROCESSING_REPLY;
+}
+
+/** 直达链接：/app?k=<一次性票据>&from=wechat（from 让网页知道结果可能还在算，短暂等一下）。 */
+function buildWechatAutoLoginLink(openid?: string): string {
+  if (!openid?.trim() || !process.env.XFEEL_WEB_URL?.trim()) return "";
+  try {
+    const { ticket } = createAutoLoginTicket({ platform: "weixin", external_user_id: openid });
+    const url = new URL("/app", getWebAppBaseUrl());
+    url.searchParams.set("k", ticket);
+    url.searchParams.set("from", "wechat");
+    return url.toString();
+  } catch (error) {
+    logError("wechat_auto_login_link_failed", {
+      openid_hash: hashId(openid),
+      openid_mask: maskId(openid),
+      error: safeErrorMessage(error),
+    });
+    return "";
+  }
+}
 const WECHAT_ASYNC_ACK_REPLY = process.env.WECHAT_ASYNC_ACK_REPLY || "收到，我先处理，稍后把结果发给你。";
 const wechatRetryCache = new Map<string, { content: string; startedAt: number; attempts: number; promise: Promise<string>; result?: string }>();
 
@@ -2330,7 +2384,10 @@ function extractWechatResponseContent(xml: string) {
 async function getOrCreateWechatResponseXml(wxReq: WechatRequestXml, create: () => Promise<string>) {
   cleanupWechatRetryCache();
   const { key, content } = getWechatRetryKey(wxReq);
-  if (!content) return await waitForWechatResult(create(), WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS, renderWechatTextXml(makeWechatTextResponse(wxReq, WECHAT_SLOW_PROCESSING_REPLY)));
+  if (!content) {
+    return await waitForWechatResult(create(), WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS,
+      () => renderWechatTextXml(makeWechatTextResponse(wxReq, buildWechatSlowProcessingReply(wxReq.FromUserName))));
+  }
 
   const existing = wechatRetryCache.get(key);
   if (existing && existing.content === content && Date.now() - existing.startedAt <= WECHAT_RETRY_CACHE_TTL_MS) {
@@ -2338,7 +2395,9 @@ async function getOrCreateWechatResponseXml(wxReq: WechatRequestXml, create: () 
     if (existing.result) return existing.result;
     const isDisplayableAttempt = existing.attempts >= WECHAT_DISPLAYABLE_ATTEMPT;
     const timeoutMs = isDisplayableAttempt ? WECHAT_FINAL_RETRY_REPLY_TIMEOUT_MS : WECHAT_RETRY_HOLD_TIMEOUT_MS;
-    const fallback = isDisplayableAttempt ? renderWechatTextXml(makeWechatTextResponse(wxReq, WECHAT_SLOW_PROCESSING_REPLY)) : "";
+    const fallback = isDisplayableAttempt
+      ? () => renderWechatTextXml(makeWechatTextResponse(wxReq, buildWechatSlowProcessingReply(wxReq.FromUserName)))
+      : () => "";
     return await waitForWechatResult(existing.promise, timeoutMs, fallback);
   }
 
@@ -2365,12 +2424,13 @@ async function getOrCreateWechatResponseXml(wxReq: WechatRequestXml, create: () 
       return renderWechatTextXml(makeWechatTextResponse(wxReq, "消息我收到了，但处理时出错。"));
     });
   wechatRetryCache.set(key, entry);
-  return await waitForWechatResult(entry.promise, WECHAT_RETRY_HOLD_TIMEOUT_MS, "");
+  return await waitForWechatResult(entry.promise, WECHAT_RETRY_HOLD_TIMEOUT_MS);
 }
 
-async function waitForWechatResult(promise: Promise<string>, timeoutMs: number, fallback = "") {
+/** fallback 传函数而不是字符串：超时真的发生时才去构造它（兜底文案会签一张一次性直达票据）。 */
+async function waitForWechatResult(promise: Promise<string>, timeoutMs: number, fallback: () => string = () => "") {
   const timeout = new Promise<string>(resolve => {
-    setTimeout(() => resolve(fallback), timeoutMs);
+    setTimeout(() => resolve(fallback()), timeoutMs);
   });
   return await Promise.race([promise, timeout]);
 }
@@ -2654,6 +2714,7 @@ function isPublicPath(method: string, path: string): boolean {
   if (method === "POST") {
     if (path === "/wechat") return true; // 公众号服务器回调，带不了我们的 JWT
     if (path === "/web/login/start" || path === "/web/login/redeem") return true;
+    if (path === "/web/login/exchange") return true;                     // 微信直达票据换 token，本身就是登录入口
   }
   return false;
 }

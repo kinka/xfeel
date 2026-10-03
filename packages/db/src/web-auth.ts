@@ -53,6 +53,7 @@ interface CodeRow {
   family_id: string | null;
   expires_at: string;
   claimed_by_openid: string | null;
+  claimed_by_platform: string | null;
   claimed_at: string | null;
   used_at: string | null;
   attempt_count: number;
@@ -84,7 +85,7 @@ function clearAttempts(code: string, db: Database): void {
 
 function loadLoginCode(db: Database, code: string): CodeRow | undefined {
   return db.prepare(`
-    SELECT code, family_id, expires_at, claimed_by_openid, claimed_at, used_at, attempt_count, locked_until
+    SELECT code, family_id, expires_at, claimed_by_openid, claimed_by_platform, claimed_at, used_at, attempt_count, locked_until
     FROM verification_codes WHERE code = ? AND purpose = 'web_login'
   `).get(code) as CodeRow | undefined;
 }
@@ -216,6 +217,80 @@ export function redeemWebLoginCode(code: string, db: Database = getDB()): Redeem
   tx();
 
   clearAttempts(normalized, db);
+  return result!;
+}
+
+/**
+ * 免登录直达票据：公众号侧「处理得比较久」的兜底回复里带的链接凭证。
+ *
+ * 那一刻我们已经确知说话人的 openid，所以不必让 ta 再走「网页取 6 位暗号 → 回微信回暗号」
+ * 的往返：直接签一张一次性、短时效的票据塞进链接，用户点开网页版即换成正式 token。
+ * 复用 verification_codes（purpose='web_login'），但与 6 位暗号有两处关键不同：
+ *   - 票据是长随机串（144 bit），不可枚举，因此不需要 attempt_count/锁定那套防爆破；
+ *   - 创建时就已认领（claimed_by_openid/family_id 落好），网页侧只兑换、不认领。
+ * normalizeLoginCode() 只认 6 位纯数字，所以票据永远不会被暗号那条路径误处理。
+ */
+const AUTO_LOGIN_TTL_MS = Number(process.env.XFEEL_AUTOLOGIN_TTL_MS || 30 * 60 * 1000);
+const AUTO_LOGIN_PREFIX = "al_";
+const AUTO_LOGIN_PATTERN = /^al_[A-Za-z0-9_-]{16,64}$/;
+
+export interface AutoLoginTicket {
+  ticket: string;
+  expiresAt: string;
+}
+
+/** 给已知 openid 的说话人签一张一次性直达票据（未开户则顺带自动开户）。 */
+export function createAutoLoginTicket(
+  input: { platform?: string; external_user_id: string },
+  db: Database = getDB(),
+): AutoLoginTicket {
+  const platform = input.platform?.trim() || "weixin";
+  const externalUserId = input.external_user_id.trim();
+  if (!externalUserId) throw new Error("external_user_id is required");
+
+  let family = getFamilySummary({ platform, external_user_id: externalUserId }, db);
+  if (!family) family = autoProvisionFamilyForSpeaker({ platform, external_user_id: externalUserId }, db);
+
+  const ticket = AUTO_LOGIN_PREFIX + randomBytes(18).toString("base64url");
+  const expiresAt = new Date(Date.now() + AUTO_LOGIN_TTL_MS).toISOString();
+  db.prepare(`
+    INSERT INTO verification_codes (code, purpose, family_id, expires_at, claimed_by_openid, claimed_by_platform, claimed_at, metadata)
+    VALUES (?, 'web_login', ?, ?, ?, ?, datetime('now'), ?)
+  `).run(ticket, family.family.id, expiresAt, externalUserId, platform, JSON.stringify({ kind: "auto_login" }));
+
+  return { ticket, expiresAt };
+}
+
+/** 网页兑换直达票据：签发 1 年 token 并把票据置为已用（一次性）。 */
+export function redeemAutoLoginTicket(ticket: string, db: Database = getDB()): RedeemResult {
+  const normalized = ticket.trim();
+  if (!AUTO_LOGIN_PATTERN.test(normalized)) return { status: "not_found" };
+
+  const row = loadLoginCode(db, normalized);
+  if (!row) return { status: "not_found" };
+  if (row.used_at) return { status: "used" };
+  if (Date.parse(row.expires_at) < Date.now()) return { status: "expired" };
+  // 票据本就是签发时认领好的；缺字段说明这不是一张直达票据，不给放行。
+  if (!row.claimed_by_openid || !row.family_id) return { status: "not_found" };
+
+  let result: RedeemResult | undefined;
+  const tx = db.transaction(() => {
+    // 先消费再签发：并发点两次时，第二次拿不到 changes，直接按"已用"返回。
+    const consumed = db.prepare(
+      "UPDATE verification_codes SET used_at = datetime('now') WHERE code = ? AND used_at IS NULL"
+    ).run(normalized);
+    if (!consumed.changes) {
+      result = { status: "used" };
+      return;
+    }
+    result = issueWebSessionForSpeaker({
+      platform: row.claimed_by_platform || "weixin",
+      externalUserId: row.claimed_by_openid!,
+      familyId: row.family_id!,
+    }, db);
+  });
+  tx();
+
   return result!;
 }
 

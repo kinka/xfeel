@@ -4,7 +4,7 @@ import { initSchema } from "./schema";
 import { createFamilyInvite, getFamilySummary, upsertFamilyOnboarding } from "./family";
 import {
   createWebLoginCode, claimWebLoginCode, getWebLoginStatus, redeemWebLoginCode, getWebSession, normalizeLoginCode,
-  authorizeWebSessionForWechat,
+  authorizeWebSessionForWechat, createAutoLoginTicket, redeemAutoLoginTicket,
 } from "./web-auth";
 
 describe("web login (phase 3)", () => {
@@ -200,6 +200,69 @@ describe("web login (phase 3)", () => {
       const row = db.prepare("SELECT attempt_count, locked_until FROM verification_codes WHERE code = ?").get(code) as { attempt_count: number; locked_until: string | null };
       expect(row.attempt_count).toBe(0);
       expect(row.locked_until).toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("auto-login ticket (微信慢回复直达链接)", () => {
+  test("full flow: 签票 → 兑换 1y token → 一次性作废", () => {
+    const db = new Database(":memory:");
+    try {
+      initSchema(db);
+      const { ticket, expiresAt } = createAutoLoginTicket({ platform: "weixin", external_user_id: "wx-dad" }, db);
+      expect(ticket).toMatch(/^al_[A-Za-z0-9_-]{16,64}$/);
+      expect(Date.parse(expiresAt)).toBeGreaterThan(Date.now());
+
+      const redeem = redeemAutoLoginTicket(ticket, db);
+      expect(redeem.status).toBe("authorized");
+      const family = getFamilySummary({ platform: "weixin", external_user_id: "wx-dad" }, db)!;
+      expect(redeem.familyId).toBe(family.family.id);
+      expect(redeem.ownerId).toBe(family.settings.default_owner_id);
+      expect(getWebSession(redeem.token!, db)?.externalUserId).toBe("wx-dad");
+
+      // 一次性：链接被转发/重复点开都换不到第二个 token
+      expect(redeemAutoLoginTicket(ticket, db).status).toBe("used");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("绑到已有家庭，不会另开一个", () => {
+    const db = new Database(":memory:");
+    try {
+      initSchema(db);
+      upsertFamilyOnboarding({
+        family_id: "fam-t",
+        name: "T 家庭",
+        members: [{ label: "爸爸", role: "parent" }],
+        speaker: { external_user_id: "wx-dad", platform: "weixin", self_member_id: "爸爸" },
+        settings: { default_owner_id: "owner-t" },
+      }, db);
+      const { ticket } = createAutoLoginTicket({ platform: "weixin", external_user_id: "wx-dad" }, db);
+      const redeem = redeemAutoLoginTicket(ticket, db);
+      expect(redeem.familyId).toBe("fam-t");
+      expect(redeem.ownerId).toBe("owner-t");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("过期票据、乱猜的串、以及 6 位暗号那条路都换不到 token", () => {
+    const db = new Database(":memory:");
+    try {
+      initSchema(db);
+      const { ticket } = createAutoLoginTicket({ platform: "weixin", external_user_id: "wx-dad" }, db);
+      db.prepare("UPDATE verification_codes SET expires_at = ? WHERE code = ?")
+        .run(new Date(Date.now() - 1000).toISOString(), ticket);
+      expect(redeemAutoLoginTicket(ticket, db).status).toBe("expired");
+
+      expect(redeemAutoLoginTicket("al_" + "a".repeat(24), db).status).toBe("not_found");
+      expect(redeemAutoLoginTicket("123456", db).status).toBe("not_found");
+      // 票据不是 6 位暗号：认领/轮询/兑换那套路径看不见它
+      expect(getWebLoginStatus(ticket, db)).toBe("not_found");
+      expect(redeemWebLoginCode(ticket, db).status).toBe("not_found");
     } finally {
       db.close();
     }

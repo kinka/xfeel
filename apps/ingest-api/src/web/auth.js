@@ -178,27 +178,37 @@
   g.showGate = function () { ensureOverlay().style.display = "flex"; };
 
   /**
-   * URL 带 ?token=（admin token 或分享的会话 token）时，落进 localStorage 并把参数从
-   * 地址栏擦掉（避免它留在浏览器历史/收藏夹里）。这是 g.ensureLogin 判断"是否已登录"
-   * 之前必须先做的事——否则纯 URL token 从来不会被当成登录凭证。
+   * 从 URL 取登录凭证，然后把它从地址栏擦掉（避免留在浏览器历史/收藏夹/Referer 里）：
+   *   ?token= —— admin token 或分享的会话 token，直接落 localStorage；
+   *   ?k=     —— 微信回复里带的一次性直达票据，换成正式会话 token（异步）。
+   * 这是 g.ensureLogin 判断"是否已登录"之前必须先做的事——否则纯 URL 凭证
+   * 从来不会被当成登录凭证。返回 Promise：票据兑换要等一次网络往返。
    */
-  function bootstrapTokenFromURL() {
+  function bootstrapCredentialFromURL() {
     var params = new URLSearchParams(location.search);
     var t = params.get("token");
-    if (!t) return;
-    g.setToken(t);
+    var ticket = params.get("k");
+    if (!t && !ticket) return Promise.resolve();
+    if (t) g.setToken(t);
     params.delete("token");
+    params.delete("k");
     var rest = params.toString();
     history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    if (!ticket) return Promise.resolve();
+    // 票据一次性：即使本机已登录也照换不误——它代表"此刻在微信里的这个人"，比旧 token 更新。
+    return jpost("/web/login/exchange", { ticket: ticket }).then(function (r) {
+      if (r && r.token) g.setToken(r.token);
+    }).catch(function () { /* 票据过期/已用：静默降级到暗号登录门 */ });
   }
 
   /** 有 token 直接放行 cb；否则弹登录门，登录成功后再执行 cb。cb 前先备好媒体短 token。 */
   g.ensureLogin = function (cb) {
-    bootstrapTokenFromURL();
     var run = cb ? function () { g.refreshMediaToken().then(function () { cb(); }); } : null;
     onAuthed = run;
-    if (g.token()) { if (run) run(); }
-    else { ensureOverlay(); }
+    bootstrapCredentialFromURL().then(function () {
+      if (g.token()) { if (run) run(); }
+      else { ensureOverlay(); }
+    });
   };
 
   window.XFEEL_AUTH = g;
